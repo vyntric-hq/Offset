@@ -1,0 +1,5 @@
+{"count":3,"results":[
+{"State ID":"06","Rptr ID":"1001","Frequency":"146.94000","Input Freq":"146.34000","PL":"100.0","TSQ":"","Near":"","Landmark":"Test Hill","County":"Santa Clara","State":"California","Country":"United States","Lat":"37.3400","Long":"-121.8900","Precise":1,"Callsign":"W0TEST","Use":"OPEN","Operational Status":"On-air","FM Analog":"Yes","Nearest City":"San Jose","Last Update":"2026-10-01","Notes":"Synthetic test entry"},
+{"State ID":"06","Rptr ID":"1002","Frequency":"442.10000","Input Freq":"447.10000","PL":"D023","TSQ":"D023","County":"Alameda","State":"California","Country":"United States","Lat":"37.6600","Long":"-121.8700","Callsign":"W0TEST","Operational Status":"On-air","FM Analog":"Yes","DMR":"Yes","Nearest City":"Pleasanton","Last Update":"2026-09-01"},
+{"State ID":"06","Rptr ID":"1003","Frequency":"145.11000","Input Freq":"144.51000","PL":"CSQ","TSQ":"","County":"Santa Clara","State":"California","Lat":"37.2","Long":"-121.9","Callsign":"N0OFF","Operational Status":"Off-air","FM Analog":"Yes","Nearest City":"Los Gatos"}
+]}

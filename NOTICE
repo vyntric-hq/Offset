@@ -1,0 +1,88 @@
+Offset
+Copyright (C) 2026 Offset contributors
+https://github.com/vyntric-hq/offset
+
+Offset is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version. See LICENSE.
+
+-------------------------------------------------------------------------------------------------
+Ported code
+-------------------------------------------------------------------------------------------------
+
+CHIRP (https://github.com/kk7ds/chirp)
+  Copyright 2012 Dan Smith and CHIRP contributors. GPL-2.0-or-later.
+  The UV-5R clone protocol (identification magics, block read and write, firmware probe,
+  dropped byte workaround), the memory map, the 16 byte channel and name record layout, the
+  tone and DCS encoding, the model identification tables (chirp/drivers/uv5r.py), the CTCSS and
+  DCS code tables (chirp/chirp_common.py), the .img metadata trailer (chirp_common.py
+  CloneModeRadio) and the CSV column semantics (chirp/drivers/generic_csv.py) are ported to
+  Kotlin in the protocol module. Reference revision: d3bed431003087948b17bf15d09c53ad7dbbeec5.
+
+baoclone (https://github.com/sergev/baoclone)
+  Copyright (C) 2013 Serge Vakulenko, KK6ABQ.
+  Used as a cross check of the protocol (the late ACK on the BF-F8HP in particular) and for
+  three test images (protocol/src/test/resources/fixtures/baoclone-*.img and the simulated
+  radio's factory image app/src/main/assets/simulated/uv5r-factory.img). License:
+
+    Redistribution and use in source and binary forms, with or without modification, are
+    permitted provided that the following conditions are met:
+      1. Redistributions of source code must retain the above copyright notice, this list of
+         conditions and the following disclaimer.
+      2. Redistributions in binary form must reproduce the above copyright notice, this list of
+         conditions and the following disclaimer in the documentation and/or other materials
+         provided with the distribution.
+      3. The name of the author may not be used to endorse or promote products derived from
+         this software without specific prior written permission.
+    THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES,
+    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+    PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT,
+    INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+    LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+    BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+    STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+    USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+Repeater-START (https://github.com/programmin1/Repeater-START)
+  GPL. Consulted for how the Hearham API fields map to repeater properties (encode, decode,
+  offset, operational, detail URL). No code copied.
+
+-------------------------------------------------------------------------------------------------
+Bundled assets
+-------------------------------------------------------------------------------------------------
+
+Inter typeface, Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter).
+  SIL Open Font License 1.1, full text in docs/INTER-OFL.txt. Files: app/src/main/res/font/.
+
+Material Icons (androidx.compose.material:material-icons-extended), Apache License 2.0.
+
+Map tiles, styles, fonts and sprites are loaded at run time from OpenFreeMap
+(https://openfreemap.org), not bundled: © OpenFreeMap, © OpenMapTiles, map data © OpenStreetMap
+contributors (ODbL).
+
+-------------------------------------------------------------------------------------------------
+Libraries (all FOSS)
+-------------------------------------------------------------------------------------------------
+
+usb-serial-for-android, Copyright (c) 2011-2013 Google Inc. and contributors, MIT License.
+MapLibre Native for Android, Copyright MapLibre contributors (and Mapbox for earlier code),
+  BSD 2-Clause License; with its dependencies Timber (Apache 2.0) and MapLibre GeoJSON, Turf and
+  gestures modules (MIT and BSD).
+AndroidX (Compose, Activity, Lifecycle, Navigation, Room, Core, Security Crypto) and Tink,
+  Apache License 2.0.
+OkHttp, Copyright Square, Inc., Apache License 2.0.
+Kotlin standard library, kotlinx.coroutines, kotlinx.serialization, JetBrains, Apache License 2.0.
+
+-------------------------------------------------------------------------------------------------
+Data sources
+-------------------------------------------------------------------------------------------------
+
+Hearham (https://hearham.com): repeater data from Hearham.com. A snapshot of the public API
+  response, trimmed to the records and fields Offset uses, ships in the app
+  (app/src/main/assets/repeaters/hearham.json.gz, date in hearham.meta.json), and a small extract
+  is a unit test fixture (app/src/test/resources/hearham-fixture.json).
+US Census Bureau Gazetteer, 2025 (https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html):
+  county names and internal points, public domain (US government work). File:
+  app/src/main/assets/places/counties.tsv.
+RepeaterBook (https://www.repeaterbook.com): "Data courtesy of RepeaterBook.com". No
+  RepeaterBook data is stored in this repository; the RepeaterBook test fixture is synthetic.

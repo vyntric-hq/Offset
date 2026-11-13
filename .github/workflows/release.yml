@@ -1,0 +1,116 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+# contents: write creates the release; id-token and attestations sign the build provenance.
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    name: Build, sign, attest and publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up JDK 17 (pinned)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17.0.13+11"
+
+      - name: Install pinned Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;35.0.0"
+
+      - name: Derive version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Tag $GITHUB_REF_NAME is not vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: ./gradlew --no-daemon test -Poffset.versionName="$VERSION"
+
+      - name: Decode signing keystore
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          echo "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/offset-release.jks"
+          echo "OFFSET_KEYSTORE_PATH=$RUNNER_TEMP/offset-release.jks" >> "$GITHUB_ENV"
+
+      - name: Check the keystore matches the published fingerprint
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          ACTUAL=$(keytool -list -v -keystore "$OFFSET_KEYSTORE_PATH" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" \
+            | awk -F': ' '/SHA256:/ {print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+          PUBLISHED=$(grep -v '^#' release-cert.sha256 | tr -d ' :\n' | tr 'A-F' 'a-f')
+          if [ -n "$PUBLISHED" ] && [ "$ACTUAL" != "$PUBLISHED" ]; then
+            echo "Keystore certificate does not match release-cert.sha256" >&2
+            exit 1
+          fi
+          echo "Signing certificate SHA-256: $ACTUAL"
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew --no-daemon assembleRelease -Poffset.versionName="$VERSION"
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/offset-release.jks"
+
+      - name: Verify signature and collect artifacts
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/offset-$VERSION.apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "dist/offset-$VERSION.apk"
+          cd dist && sha256sum "offset-$VERSION.apk" > SHA256SUMS && cat SHA256SUMS
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/offset-${{ env.VERSION }}.apk
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v v="$VERSION" '
+            $0 ~ "^## \\[" v "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > dist/notes.md
+          if [ ! -s dist/notes.md ]; then
+            echo "CHANGELOG.md has no section for $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/offset-$VERSION.apk" dist/SHA256SUMS \
+            --title "Offset $VERSION" \
+            --notes-file dist/notes.md \
+            --verify-tag

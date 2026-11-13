@@ -1,0 +1,4 @@
+# SHA-256 fingerprint of the Offset release signing certificate, colon separated, as printed by
+# `apksigner verify --print-certs` or `keytool -list -v`. Public information, not a secret.
+# Generated 2026-11-13; see docs/REPRODUCIBLE.md "Signing key".
+E0:39:A2:72:7A:EB:35:89:A4:78:04:0B:B7:4A:8C:7E:89:98:00:77:E4:EA:FA:2E:0F:A3:2C:8C:A8:12:1C:62
