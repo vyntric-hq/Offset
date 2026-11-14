@@ -19,6 +19,43 @@ CHIRP (https://github.com/kk7ds/chirp)
   CloneModeRadio) and the CSV column semantics (chirp/drivers/generic_csv.py) are ported to
   Kotlin in the protocol module. Reference revision: d3bed431003087948b17bf15d09c53ad7dbbeec5.
 
+CHIRP Baofeng DM-32UV driver (chirp/drivers/baofeng_dm32uv.py)
+  Copyright 2026 chaffed. GPL-3.0-or-later.
+  The DM-32UV image layout, channel record, Kenwood tone encoding, zone, scan list and TX contact
+  editing, and clone protocol are ported to Kotlin in the protocol module (Dm32uv*.kt). The test
+  image protocol/src/test/resources/fixtures/chirp-dm32uv.img is CHIRP's
+  tests/images/Baofeng_DM-32UV.img. Reference revision: d99bb227093a0191a973ab9aa17276a0bee7b00a.
+
+Radtel-RT950-Pro-Firmware (https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware)
+  GPL-3.0. The RT-950 Pro clone protocol (handshake, key table, key frame, XOR rules, read and
+  write commands) is ported from tools/cps_flash.py (Rt950Pro*.kt). Reference revision:
+  b49804bafcf86271fdb8b20f9a32b7d30d5ea1be.
+
+Chirp_Radtel-RT-950-Pro (https://github.com/NathanBarguss/Chirp_Radtel-RT-950-Pro)
+  The RT-950 Pro segment list and order, the 32 byte channel record, the DCS table, bands and
+  power levels come from rt950pro/transport.py, channel.py, image.py, chirp_driver.py and
+  DESIGN.md (Rt950Pro*.kt). Test expected values were computed with this code. Reference
+  revision: 254d2cd52e152a83cdc2f008e26afd7ed03b2798. License:
+
+    MIT License
+
+    Copyright (c) 2025 Nathan G. Barguss - 2E0NBS
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+    and associated documentation files (the "Software"), to deal in the Software without
+    restriction, including without limitation the rights to use, copy, modify, merge, publish,
+    distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all copies or
+    substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+    BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+    NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+    DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 baoclone (https://github.com/sergev/baoclone)
   Copyright (C) 2013 Serge Vakulenko, KK6ABQ.
   Used as a cross check of the protocol (the late ACK on the BF-F8HP in particular) and for

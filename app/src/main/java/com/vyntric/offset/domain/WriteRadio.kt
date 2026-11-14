@@ -7,11 +7,10 @@ package com.vyntric.offset.domain
 import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.ChannelValidator
 import com.vyntric.offset.protocol.CloneProgress
-import com.vyntric.offset.protocol.ImageRegions
+import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.RadioException
 import com.vyntric.offset.protocol.RadioImage
 import com.vyntric.offset.protocol.Sleeper
-import com.vyntric.offset.protocol.Uv5rClone
 import java.time.Clock
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -20,11 +19,12 @@ import java.time.format.DateTimeFormatter
  * Writes channels to the radio under the safety rules:
  * 1. read the full image from the radio first;
  * 2. block when the image's ident does not match the radio;
- * 3. patch only the channel and name regions on top of the radio's own image;
+ * 3. patch only the memory the radio's driver lets Offset write (channels, and on the DM-32UV the
+ *    zones, scan lists and TX contacts that refer to them) on top of the radio's own image;
  * 4. save a timestamped backup of the radio's image before writing;
  * 5. read back after writing and compare;
  * 7. report every failure, saying whether the radio may be partially written.
- * Rule 6 (confirmation) is the caller's job; [Request.confirmedIdentHex] carries what was shown.
+ * Rule 6 (confirmation) is the caller's job; [Request.confirmedIdentity] carries what was shown.
  */
 class WriteRadio(
     private val link: RadioLink,
@@ -34,10 +34,10 @@ class WriteRadio(
     private val sleeper: Sleeper,
 ) {
     sealed interface Content {
-        /** Up to 128 slots, index = radio slot; null slots (and slots past the end) are cleared. */
+        /** Up to the radio's capacity of slots, index = radio slot; null slots (and slots past the end) are cleared. */
         data class Channels(val channels: List<Channel?>) : Content
 
-        /** Copy the channel and name regions of a stored image ("Restore to radio"). */
+        /** Copy the writable memory of a stored image ("Restore to radio"). */
         data class FromImage(val image: RadioImage) : Content
     }
 
@@ -45,8 +45,10 @@ class WriteRadio(
         val content: Content,
         /** Name for the resulting image in the library. */
         val resultName: String,
-        /** Ident of the radio named on the confirmation sheet, if one had been read. */
-        val confirmedIdentHex: String?,
+        /** Identity of the radio named on the confirmation sheet, if one had been read. */
+        val confirmedIdentity: String?,
+        /** The radio type to talk to: the one the staging list was built for, or the restored image's. */
+        val driver: RadioDriver,
     )
 
     enum class Stage { READ, CHECK, BACKUP, WRITE, VERIFY }
@@ -69,9 +71,10 @@ class WriteRadio(
     }
 
     suspend operator fun invoke(request: Request, onProgress: (CloneProgress) -> Unit): Outcome {
+        val driver = request.driver
         // Rule 1: full read of the connected radio.
         val radio = try {
-            link.session { port -> Uv5rClone(port, sleeper, onProgress).download() }
+            link.session(driver) { port -> driver.clone(port, sleeper, onProgress).download() }
         } catch (e: Exception) {
             return Outcome.Blocked(Stage.READ, listOf(describe(e)))
         }
@@ -79,36 +82,46 @@ class WriteRadio(
 
         // Rule 2: the radio must be the one confirmed, and a restored image must match it.
         val reasons = ArrayList<String>()
-        if (request.confirmedIdentHex != null && request.confirmedIdentHex != radio.identHex) {
-            reasons += "The connected radio (${radio.identHex}) is not the one shown on the confirmation sheet " +
-                "(${request.confirmedIdentHex}). Nothing was written."
+        if (request.confirmedIdentity != null && request.confirmedIdentity != radio.identity) {
+            reasons += "The connected radio (${radio.identity}) is not the one shown on the confirmation sheet " +
+                "(${request.confirmedIdentity}). Nothing was written."
         }
         val target: RadioImage = when (val c = request.content) {
             is Content.FromImage -> {
-                if (!c.image.ident.contentEquals(radio.ident)) {
-                    reasons += "This image was read from a different radio (image ident ${c.image.identHex}, " +
-                        "radio ident ${radio.identHex}). Offset only restores an image to a radio with the same ident."
+                if (c.image.driver != radio.driver) {
+                    return Outcome.Blocked(
+                        Stage.CHECK,
+                        listOf("This image is for a ${c.image.driver.displayName}; the radio is a ${radio.driver.displayName}."),
+                    )
                 }
-                if (c.image.model != radio.model) {
-                    reasons += "This image is for a ${c.image.model.displayName}; the radio is a ${radio.model.displayName}."
+                if (c.image.identity != radio.identity) {
+                    reasons += "This image was read from a different radio (image ${c.image.identity}, " +
+                        "radio ${radio.identity}). Offset only restores an image to a radio of the same kind."
+                }
+                if (c.image.modelName != radio.modelName) {
+                    reasons += "This image is for a ${c.image.modelName}; the radio is a ${radio.modelName}."
                 }
                 // Exact bytes are restored, but nothing that would misprogram this radio: every
                 // frequency must be in its bands and every tone valid. Names and step size are not
-                // checked, so a radio's own backup always restores.
+                // checked, so a radio's own backup always restores. Digital channels are kept as
+                // stored.
                 c.image.channels().forEachIndexed { i, ch ->
-                    if (ch == null) return@forEachIndexed
-                    ChannelValidator.validate(ch, radio.model)
-                        .filter { it.field in RESTORE_CHECKS && (it.field != ChannelValidator.Field.FREQUENCY || !radio.model.inBand(ch.rxFreqHz)) }
+                    if (ch == null || ch.digitalMode != null) return@forEachIndexed
+                    ChannelValidator.validate(ch, radio.profile)
+                        .filter { it.field in RESTORE_CHECKS && (it.field != ChannelValidator.Field.FREQUENCY || !radio.profile.inBand(ch.rxFreqHz)) }
                         .forEach { p -> reasons += "Channel ${i + 1}: ${p.message}" }
                 }
-                copyWritableRegions(from = c.image, onto = radio)
+                radio.withWritableRegionsOf(c.image)
             }
             is Content.Channels -> {
-                if (c.channels.size > RadioImage.CHANNEL_COUNT) {
-                    reasons += "The radio holds ${RadioImage.CHANNEL_COUNT} channels; ${c.channels.size} are staged."
+                if (c.channels.size > radio.capacity) {
+                    reasons += "The radio holds ${radio.capacity} channels; ${c.channels.size} are staged."
                 }
+                // Only what changes is checked: a channel already on the radio in that slot is
+                // written back byte for byte, whatever the radio accepts there.
                 c.channels.forEachIndexed { i, ch ->
-                    if (ch != null) ChannelValidator.validate(ch, radio.model).forEach { p -> reasons += "Channel ${i + 1}: ${p.message}" }
+                    if (ch == null || (i < radio.capacity && ch == radio.channel(i))) return@forEachIndexed
+                    ChannelValidator.validate(ch, radio.profile).forEach { p -> reasons += "Channel ${i + 1}: ${p.message}" }
                 }
                 if (reasons.isEmpty()) {
                     try {
@@ -119,8 +132,8 @@ class WriteRadio(
                 } else radio
             }
         }
-        // Rule 3: nothing outside the channel and name regions may change.
-        if (!ImageRegions.differsOnlyInWritableRegions(radio, target)) {
+        // Rule 3: nothing outside the writable memory may change.
+        if (!radio.differsOnlyInWritableRegions(target)) {
             reasons += "Internal check failed: the new image would change settings or calibration."
         }
         if (reasons.isNotEmpty()) return Outcome.Blocked(Stage.CHECK, reasons)
@@ -132,10 +145,10 @@ class WriteRadio(
             return Outcome.Blocked(Stage.BACKUP, listOf("Could not save the backup, so nothing was written. ${e.message.orEmpty()}"))
         }
 
-        val blocks = ImageRegions.changedBlocks(radio, target)
-        if (blocks.isNotEmpty()) {
+        var blocks = 0
+        if (target != radio) {
             try {
-                link.session { port -> Uv5rClone(port, sleeper, onProgress).upload(target, blocks, expectedBefore = radio) }
+                blocks = link.session(driver) { port -> driver.clone(port, sleeper, onProgress).upload(target, before = radio) }
             } catch (e: Exception) {
                 // A refusal before any block went out leaves the radio untouched.
                 val untouched = e is RadioException.IdentMismatch || e is RadioException.NoContact ||
@@ -146,7 +159,7 @@ class WriteRadio(
 
         // Rule 5: read back and compare.
         val readBack = try {
-            link.session { port -> Uv5rClone(port, sleeper, onProgress).download(CloneProgress.Phase.VERIFYING) }
+            link.session(driver) { port -> driver.clone(port, sleeper, onProgress).download(CloneProgress.Phase.VERIFYING) }
         } catch (e: Exception) {
             return Outcome.Failed(
                 Stage.VERIFY,
@@ -156,7 +169,7 @@ class WriteRadio(
             )
         }
         session.update(readBack, clock.millis())
-        val mismatches = ImageRegions.mismatchedChannels(target, readBack)
+        val mismatches = target.mismatchedChannels(readBack)
         // The radio is already written; a storage failure here must not hide the result.
         var saveError: String? = null
         val savedId = try {
@@ -169,17 +182,10 @@ class WriteRadio(
             null
         }
         return if (mismatches.isEmpty()) {
-            Outcome.Verified(savedId, backupId, blocks.size, saveError)
+            Outcome.Verified(savedId, backupId, blocks, saveError)
         } else {
             Outcome.Mismatch(mismatches.map { it + 1 }, savedId, backupId, saveError)
         }
-    }
-
-    private fun copyWritableRegions(from: RadioImage, onto: RadioImage): RadioImage {
-        val src = from.bytes()
-        val dst = onto.bytes()
-        for (region in ImageRegions.WRITABLE) src.copyInto(dst, region.first, region.first, region.last + 1)
-        return RadioImage.of(dst)
     }
 
     private fun stamp(): String = LocalDateTime.now(clock).format(STAMP)

@@ -22,7 +22,7 @@ import com.vyntric.offset.protocol.ChirpCsv
 import com.vyntric.offset.protocol.Duplex
 import com.vyntric.offset.protocol.Power
 import com.vyntric.offset.protocol.PttId
-import com.vyntric.offset.protocol.RadioModel
+import com.vyntric.offset.protocol.RadioProfile
 import com.vyntric.offset.protocol.Squelch
 import com.vyntric.offset.protocol.ToneMode
 import com.vyntric.offset.protocol.Tones
@@ -55,7 +55,7 @@ data class ChannelDraft(
 ) {
     data class Result(val channel: Channel?, val problems: Map<ChannelValidator.Field, String>)
 
-    fun build(model: RadioModel): Result {
+    fun build(model: RadioProfile): Result {
         val problems = LinkedHashMap<ChannelValidator.Field, String>()
         val rxHz = ChirpCsv.parseFreq(freq)?.takeIf { it > 0 }
         if (rxHz == null) problems[ChannelValidator.Field.FREQUENCY] = "Enter a frequency in MHz, for example 146.520."
@@ -104,13 +104,13 @@ private val DCS_OPTIONS: List<Squelch> = Tones.DCS_CODES.flatMap { listOf(Squelc
 private val ANY_OPTIONS: List<Squelch> = listOf(Squelch.None) + CTCSS_OPTIONS + DCS_OPTIONS
 
 /**
- * Bottom sheet that edits one channel with UV-5R field limits. [onDelete] adds a destructive row.
+ * Bottom sheet that edits one channel within a radio profile's limits. [onDelete] adds a destructive row.
  */
 @Composable
 fun ChannelEditorSheet(
     title: String,
     initial: Channel?,
-    model: RadioModel,
+    model: RadioProfile,
     onSave: (Channel) -> Unit,
     onDismiss: () -> Unit,
     onDelete: (() -> Unit)? = null,
@@ -132,7 +132,7 @@ fun ChannelEditorSheet(
         InsetSection(header = null) {
             cell {
                 TextFieldRow(
-                    "Name", draft.name, { touched = true; draft = draft.copy(name = it.uppercase().take(model.nameLength)) },
+                    "Name", draft.name, { touched = true; draft = draft.copy(name = (if (model.uppercaseNames) it.uppercase() else it).take(model.nameLength)) },
                     placeholder = "Up to ${model.nameLength} characters",
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
                     error = show(ChannelValidator.Field.NAME),

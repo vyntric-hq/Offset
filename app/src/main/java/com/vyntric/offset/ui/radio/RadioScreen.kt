@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,7 +52,9 @@ import com.vyntric.offset.domain.SimplexPresets
 import com.vyntric.offset.domain.StagedChannel
 import com.vyntric.offset.ui.GmrsWarningSheet
 import com.vyntric.offset.protocol.CloneProgress
-import com.vyntric.offset.protocol.RadioImage
+import com.vyntric.offset.protocol.RadioDriver
+import com.vyntric.offset.protocol.RadioDrivers
+import com.vyntric.offset.protocol.Uv5rImage
 import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.ui.channel.ChannelEditorSheet
 import com.vyntric.offset.ui.components.BarAction
@@ -85,20 +88,23 @@ fun RadioScreen(container: AppContainer) {
     val colors = OffsetTheme.colors
     val haptics = rememberHaptics()
     val listState = rememberLazyListState()
-    val reorder = rememberReorderState(listState, canReorder = { it is Long }) { from, to -> vm.move(from as Long, to as Long) }
+    val fixedSlots = state.target.fixedSlots
+    val reorder = rememberReorderState(listState, canReorder = { it is Long && !fixedSlots }) { from, to -> vm.move(from as Long, to as Long) }
 
     var editing by remember { mutableStateOf<StagedChannel?>(null) }
     var adding by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf(false) }
     var presets by remember { mutableStateOf(false) }
+    var pickingType by remember { mutableStateOf(false) }
+    val capacity = state.target.capacity
     val pendingPreset by vm.pendingPreset.collectAsStateWithLifecycle()
 
     LargeTitleScreen(
         title = "Radio",
         listState = listState,
         actions = {
-            BarAction("Presets", enabled = state.staging.size < RadioImage.CHANNEL_COUNT) { presets = true }
-            BarAction("Add", enabled = state.staging.size < RadioImage.CHANNEL_COUNT) { adding = true }
+            BarAction("Presets", enabled = state.staging.size < capacity) { presets = true }
+            BarAction("Add", enabled = state.staging.size < capacity) { adding = true }
         },
         bottomBarHeight = 82.dp,
         bottomBar = {
@@ -112,7 +118,9 @@ fun RadioScreen(container: AppContainer) {
             }
         },
     ) {
-        item(key = "connection") { ConnectionSection(state, onPermission = vm::requestPermission, onRead = vm::read) }
+        item(key = "connection") {
+            ConnectionSection(state, onPermission = vm::requestPermission, onRead = vm::read, onPickType = { pickingType = true })
+        }
 
         item(key = "banner") {
             AnimatedVisibility(state.message != null || state.error != null, enter = fadeIn(), exit = fadeOut()) {
@@ -123,12 +131,12 @@ fun RadioScreen(container: AppContainer) {
         }
 
         item(key = "staging-header") {
-            SectionHeader("Staging · ${state.staging.size} of ${RadioImage.CHANNEL_COUNT}") {
+            SectionHeader("Staging · ${state.staging.size} of $capacity") {
                 if (state.snapshot != null) {
                     Text("Load from radio", style = OffsetTheme.type.footnote, color = colors.accent,
                         modifier = Modifier.padding(start = 12.dp).tappable { vm.loadFromRadio() })
                 }
-                if (state.staging.withIndex().any { (i, s) -> s.slot != i }) {
+                if (!fixedSlots && state.staging.withIndex().any { (i, s) -> s.slot != i }) {
                     Text("Close gaps", style = OffsetTheme.type.footnote, color = colors.accent,
                         modifier = Modifier.padding(start = 16.dp).tappable("Renumber channels without gaps") { vm.compact() })
                 }
@@ -156,7 +164,7 @@ fun RadioScreen(container: AppContainer) {
                     val problems = state.problems[staged.key]
                     GroupedCell(
                         CellPosition.of(index, list.size),
-                        Modifier.animateItem().reorderable(reorder, staged.key),
+                        Modifier.animateItem().let { if (fixedSlots) it else it.reorderable(reorder, staged.key) },
                         separatorInset = 52.dp,
                     ) {
                         SwipeActionRow("Remove", onAction = { vm.remove(staged.key) }) {
@@ -164,17 +172,24 @@ fun RadioScreen(container: AppContainer) {
                                 index = index,
                                 staged = staged,
                                 problem = problems?.firstOrNull()?.message,
-                                handleModifier = Modifier.dragHandle(reorder, staged.key) { haptics.select() },
-                                onClick = { editing = staged },
-                                onMoveUp = if (index > 0) ({ vm.move(staged.key, list[index - 1].key) }) else null,
-                                onMoveDown = if (index < list.lastIndex) ({ vm.move(staged.key, list[index + 1].key) }) else null,
+                                handleModifier = if (fixedSlots) null else Modifier.dragHandle(reorder, staged.key) { haptics.select() },
+                                onClick = { if (staged.channel.digitalMode == null) editing = staged else vm.explainDigital(staged.channel) },
+                                onMoveUp = if (!fixedSlots && index > 0) ({ vm.move(staged.key, list[index - 1].key) }) else null,
+                                onMoveDown = if (!fixedSlots && index < list.lastIndex) ({ vm.move(staged.key, list[index + 1].key) }) else null,
                             )
                         }
                     }
                 }
             }
             item(key = "staging-footer") {
-                SectionFooter("Numbers are the radio's channel numbers; empty channels stay empty. Drag the handle to reorder, swipe left to remove.")
+                SectionFooter(
+                    if (fixedSlots) {
+                        "Numbers are the radio's channel numbers. Channels keep their numbers on this radio because its zones " +
+                            "and scan lists refer to them; new channels go into free numbers and a zone named Offset. Swipe left to remove."
+                    } else {
+                        "Numbers are the radio's channel numbers; empty channels stay empty. Drag the handle to reorder, swipe left to remove."
+                    },
+                )
             }
         }
     }
@@ -202,6 +217,9 @@ fun RadioScreen(container: AppContainer) {
     if (presets) {
         PresetsSheet(onDismiss = { presets = false }) { presets = false; vm.addPreset(it) }
     }
+    if (pickingType) {
+        RadioTypeSheet(current = state.radioType, onDismiss = { pickingType = false }) { pickingType = false; vm.selectRadioType(it) }
+    }
     if (pendingPreset != null) {
         GmrsWarningSheet(onCancel = vm::cancelPreset, onAccept = vm::confirmPresetGmrs)
     }
@@ -214,15 +232,27 @@ fun RadioScreen(container: AppContainer) {
 }
 
 @Composable
-private fun ConnectionSection(state: RadioUiState, onPermission: () -> Unit, onRead: () -> Unit) {
+private fun ConnectionSection(state: RadioUiState, onPermission: () -> Unit, onRead: () -> Unit, onPickType: () -> Unit) {
     val image = state.snapshot?.image
     val running = state.operation as? RadioOperations.State.Running
     InsetSection(
         header = "Connection",
-        footer = "Connect the cable through the USB-C OTG adapter. Turn the radio off, seat the 2-pin plug firmly, " +
+        footer = "Connect the cable through the USB-C OTG adapter. Turn the radio off, seat the plug firmly, " +
             "then turn it on with the volume up. " +
+            state.radioType.cableAdvice.let { if (it.isBlank()) "" else "$it " } +
             "Offset reads the whole radio before every write and keeps a backup.",
     ) {
+        cell {
+            CellRow(
+                "Radio type",
+                subtitle = if (state.radioType.experimental) "Experimental: writes are not yet verified on this radio" else null,
+                value = state.radioType.shortName,
+                chevron = !state.busy,
+                enabled = !state.busy,
+                onClick = onPickType,
+                onClickLabel = "Choose the radio type",
+            )
+        }
         cell {
             val (value, sub) = when (val c = state.cable) {
                 CableState.NoCable -> "Not detected" to null
@@ -247,8 +277,10 @@ private fun ConnectionSection(state: RadioUiState, onPermission: () -> Unit, onR
         cell {
             CellRow(
                 "Radio",
-                subtitle = image?.let { "Ident ${it.identHex}" + if (!it.detection.recognized) " · firmware not recognized, treated as UV-5R" else "" },
-                value = image?.let { listOfNotNull(it.model.displayName, it.firmwareVersion).joinToString(" · ") } ?: "Not read yet",
+                subtitle = image?.let {
+                    "Ident ${it.identity}" + if ((it as? Uv5rImage)?.detection?.recognized == false) " · firmware not recognized, treated as UV-5R" else ""
+                },
+                value = image?.let { listOfNotNull(it.modelName, it.firmwareVersion).joinToString(" · ") } ?: "Not read yet",
             )
         }
         if (running != null) {
@@ -285,7 +317,7 @@ private fun StagedRow(
     index: Int,
     staged: StagedChannel,
     problem: String?,
-    handleModifier: Modifier,
+    handleModifier: Modifier?,
     onClick: () -> Unit,
     onMoveUp: (() -> Unit)?,
     onMoveDown: (() -> Unit)?,
@@ -314,17 +346,21 @@ private fun StagedRow(
                 }
             }
             Text(
-                problem ?: Fmt.channelSummary(ch),
+                problem ?: ch.digitalMode?.let { "$it channel, kept as the radio has it" } ?: Fmt.channelSummary(ch),
                 style = OffsetTheme.type.subhead,
                 color = if (problem != null) colors.destructive else colors.secondaryLabel,
                 maxLines = 2,
             )
         }
-        Box(
-            handleModifier.size(52.dp).semantics { contentDescription = "Reorder channel ${staged.slot + 1}" },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Rounded.DragHandle, contentDescription = null, tint = colors.tertiaryLabel)
+        if (handleModifier != null) {
+            Box(
+                handleModifier.size(52.dp).semantics { contentDescription = "Reorder channel ${staged.slot + 1}" },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.DragHandle, contentDescription = null, tint = colors.tertiaryLabel)
+            }
+        } else {
+            Spacer(Modifier.width(Dimens.gutter))
         }
     }
 }
@@ -335,25 +371,61 @@ private fun WriteConfirmSheet(state: RadioUiState, defaultName: String, onCancel
     val image = state.snapshot?.image
     OffsetSheet(onDismiss = onCancel, title = "Write to radio", leadingAction = { BarAction("Cancel", onClick = onCancel) }) {
         InsetSection(header = "Radio") {
-            cell { DetailRow("Model", image?.model?.displayName ?: "Unknown") }
+            cell { DetailRow("Model", image?.modelName ?: "Unknown") }
             cell { DetailRow("Firmware", image?.firmwareVersion ?: "Unknown") }
-            cell { DetailRow("Ident", image?.identHex ?: "Unknown") }
+            cell { DetailRow("Ident", image?.identity ?: "Unknown") }
+        }
+        if (state.driver.experimental) {
+            InsetSection(header = "Experimental") {
+                cell {
+                    Text(
+                        "Offset's ${state.driver.shortName} support comes from community reverse engineering and has not been " +
+                            "verified on a radio with Offset. Only channel memory is written, a backup is saved first and the " +
+                            "radio is read back afterwards; if the channels come out wrong, restore the backup from Images.",
+                        style = OffsetTheme.type.subhead,
+                        color = OffsetTheme.colors.label,
+                        modifier = Modifier.padding(horizontal = Dimens.gutter, vertical = 12.dp),
+                    )
+                }
+            }
         }
         InsetSection(header = "Image", footer = "The written radio is saved to Images under this name.") {
             cell {
                 TextFieldRow("Name", name, { name = it }, placeholder = "Image name",
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
             }
-            cell { DetailRow("Channels", "${state.staging.size} of ${RadioImage.CHANNEL_COUNT}") }
+            cell { DetailRow("Channels", "${state.staging.size} of ${state.target.capacity}") }
             val gmrs = state.staging.count { Gmrs.isGmrs(it.channel.rxFreqHz) }
             if (gmrs > 0) cell { DetailRow("GMRS or FRS channels", "$gmrs, transmit enabled") }
         }
         SectionFooter(
-            "Offset reads the radio again, saves a backup, writes only the channel and name memory, " +
+            "Offset reads the radio again, saves a backup, writes only channel memory and the lists that refer to channels, " +
                 "then reads back to verify. Settings and calibration are never written. Keep this radio connected and the cable still until it finishes.",
         )
         Column(Modifier.padding(Dimens.gutter)) {
             PrimaryButton("Write ${state.staging.size} channels", onClick = { onConfirm(name) }, enabled = name.isNotBlank())
+        }
+    }
+}
+
+@Composable
+private fun RadioTypeSheet(current: RadioDriver, onDismiss: () -> Unit, onPick: (RadioDriver) -> Unit) {
+    OffsetSheet(onDismiss = onDismiss, title = "Radio type", leadingAction = { BarAction("Cancel", onClick = onDismiss) }) {
+        InsetSection(footer = "Each radio family speaks its own programming protocol, so Offset needs to know which one is connected.") {
+            RadioDrivers.all.forEach { d ->
+                cell {
+                    CellRow(
+                        d.displayName,
+                        subtitle = listOfNotNull(
+                            "${d.capacity} channels",
+                            "experimental".takeIf { d.experimental },
+                        ).joinToString(", "),
+                        value = if (d == current) "Selected" else null,
+                        chevron = d != current,
+                        onClickLabel = "Use ${d.displayName}",
+                    ) { onPick(d) }
+                }
+            }
         }
     }
 }

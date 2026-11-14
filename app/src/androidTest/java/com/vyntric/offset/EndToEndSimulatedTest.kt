@@ -13,8 +13,9 @@ import com.vyntric.offset.domain.toSlots
 import com.vyntric.offset.protocol.Band
 import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.ChirpImg
-import com.vyntric.offset.protocol.ImageRegions
 import com.vyntric.offset.protocol.RadioModel
+import com.vyntric.offset.protocol.Uv5rDriver
+import com.vyntric.offset.protocol.Uv5rImage
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -45,8 +46,9 @@ class EndToEndSimulatedTest {
         c.simulatedLink.reset()
 
         // Read: the first read saves a factory image.
+        c.settings.update { it.copy(radioType = Uv5rDriver.id) }
         val read = c.readRadio {}
-        assertEquals(RadioModel.UV5R, read.image.model)
+        assertEquals(RadioModel.UV5R, (read.image as Uv5rImage).model)
         assertNotNull(read.factoryImageId)
         assertEquals(ImageKind.FACTORY, c.images.load(read.factoryImageId!!)!!.kind)
 
@@ -56,20 +58,23 @@ class EndToEndSimulatedTest {
         assertEquals(listOf("K6ABC", "W6XYZ"), found.repeaters.map { it.callsign })
 
         // Stage: a simplex channel plus the two repeaters.
-        val base = c.buildStaging.add(emptyList(), listOf(Channel(146_520_000, name = "CALL")), com.vyntric.offset.domain.ChannelOrigin.MANUAL).staging
-        c.staging.put(c.buildStaging.addRepeaters(base, found.repeaters, read.image.model).staging)
+        val target = c.stagingTarget()
+        val base = c.buildStaging.add(emptyList(), listOf(Channel(146_520_000, name = "CALL")), com.vyntric.offset.domain.ChannelOrigin.MANUAL, target).staging
+        c.staging.put(c.buildStaging.addRepeaters(base, found.repeaters, target).staging)
         val staged = c.staging.observe().first()
         assertEquals(3, staged.size)
 
         // Write with all safety rules, verify, save.
-        val outcome = c.writeRadio(WriteRadio.Request(WriteRadio.Content.Channels(staged.toSlots()), "Bay Area", read.image.identHex)) {}
+        val outcome = c.writeRadio(
+            WriteRadio.Request(WriteRadio.Content.Channels(staged.toSlots(target.capacity)), "Bay Area", read.image.identity, read.image.driver),
+        ) {}
         assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Verified)
         outcome as WriteRadio.Outcome.Verified
         val saved = c.images.load(outcome.savedImageId!!)!!
         assertEquals("Bay Area", saved.name)
         assertEquals(staged.map { it.channel }, saved.image.channels().take(3))
         assertEquals(read.image, c.images.load(outcome.backupImageId)!!.image)
-        assertTrue(ImageRegions.differsOnlyInWritableRegions(read.image, saved.image))
+        assertTrue(read.image.differsOnlyInWritableRegions(saved.image))
 
         // Export as CHIRP .img and import it back.
         val file = c.exportImage.img(saved.image)
@@ -78,9 +83,13 @@ class EndToEndSimulatedTest {
         val importedImage = c.images.load(imported.id)!!.image
 
         // Change the radio, then restore the imported image to it.
-        val other = c.writeRadio(WriteRadio.Request(WriteRadio.Content.Channels(listOf(Channel(147_555_000, name = "TEMP"))), "Temp", read.image.identHex)) {}
+        val other = c.writeRadio(
+            WriteRadio.Request(WriteRadio.Content.Channels(listOf(Channel(147_555_000, name = "TEMP"))), "Temp", read.image.identity, Uv5rDriver),
+        ) {}
         assertTrue(other is WriteRadio.Outcome.Verified)
-        val restored = c.writeRadio(WriteRadio.Request(WriteRadio.Content.FromImage(importedImage), "Restored", read.image.identHex)) {}
+        val restored = c.writeRadio(
+            WriteRadio.Request(WriteRadio.Content.FromImage(importedImage), "Restored", read.image.identity, importedImage.driver),
+        ) {}
         assertTrue(restored.toString(), restored is WriteRadio.Outcome.Verified)
         val now = c.images.load((restored as WriteRadio.Outcome.Verified).savedImageId!!)!!.image
         assertEquals(importedImage.channels(), now.channels())

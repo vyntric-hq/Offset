@@ -182,6 +182,51 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     nodes, Offset uses only the fields needed to program a radio, and credits IRLP wherever the
     data appears. Remove `"src":"IRLP"` records if the IRLP project objects.
 
+## More radios (0.3.0)
+
+68. **The radio type is chosen, not probed.** The three families use different speeds and
+    handshakes; sending one family's handshake to another radio was judged riskier than asking.
+    Writes always use the type of the radio that was read.
+69. **Validation covers only changed channels.** A channel already on the radio in the same slot is
+    written back byte for byte, so radio-specific channels (airband, unusual steps) never block a
+    write. Restores still check frequencies and tones of analog channels.
+70. **DM-32UV identity is the model ID "DP570UV".** The image bytes do not hold the firmware, so
+    firmware shows only for an image read in this session; CHIRP's `dm32uv_firmware` metadata is
+    written on export but not read back.
+71. **DM-32UV channel mapping:** scan add always reads as on (scan membership lives in scan lists);
+    busy lockout maps to TX admit (anything but Allow TX reads as on; turning it on sets Channel
+    Idle); PTT ID maps to the ptt_id field; DMR channels read with frequency, duplex, name and power
+    only and are never re-encoded. Invalid BCD values read as no tone, empty or TX off.
+72. **DM-32UV edits apply as CHIRP's set_memory in ascending channel order**, so results match
+    CHIRP byte for byte (cross checked headless on hundreds of edits). New channels start from
+    CHIRP's default record with a 5 kHz step; the channel count rises and falls as CHIRP's does.
+73. **DM-32UV new channels join a zone named "Offset"** (then "Offset 2" and so on at 64 members);
+    with 250 zones and no room, a channel joins no zone rather than failing. Offset writes channel,
+    TX contact, scan list and zone pages only, never settings or DMR lists, and plans every page
+    before writing so "no free page" is refused before anything is written. Restoring an image empties writable pages the radio gained since that image was taken, and verification compares zone and scan list membership as well as channel records.
+74. **DM-32UV password protected radios are refused**, as CHIRP does, and the firmware is not
+    checked against CHIRP's tested list (CHIRP only warns).
+75. **RT-950 Pro image is the 33,152 byte decrypted clone dump** in Nathan Barguss's format, with
+    960 channels (not the 990 one source mentions). Identity is the constant "RT-950 Pro"; the 16
+    bytes after `F` are ignored, and firmware is unknown.
+76. **RT-950 Pro sessions either read or write, never both.** An upload writes all 240 channel
+    blocks in order, the flow tested on hardware, so the only check that the same unit is still
+    connected is the full read made moments before. **(hardware)**
+77. **RT-950 Pro channel details guessed from documentation:** byte 13 values 0 to 3 are PTT ID
+    Off, BOT, EOT, Both; byte 12 (signalling group) is not modeled; TX inhibit clears flag bit 1
+    and keeps the stored TX frequency; the DCS table has 210 entries (105 codes, normal then
+    inverted). **(hardware)**
+78. **RT-950 Pro bands are 18 to 64 MHz and 70 to 580 MHz** (Nathan Barguss's valid_bands), power
+    10, 5 and 1 W. Offset does not block transmit frequencies the radio itself may refuse. **(hardware)**
+79. **RT-950 Pro connection:** a CH340 USB serial cable is reported; whether it uses the 2-pin
+    jack or the USB-C port is not confirmed, and the app says so.
+80. **Staging is not cleared when the radio type changes.** Channels that do not fit the new radio
+    (too many slots, long names, DMR) are flagged and block the write until fixed.
+
+81. **Factory images are kept per identity.** For the DM-32UV and RT-950 Pro the identity is the
+    model (as the UV-5R ident is), so only the first radio of each model read on a phone gets an
+    automatic factory image; every write still saves its own backup.
+
 ## Build and release
 
 39. **AGP 8.13.2, Kotlin 2.2.21 and Gradle 8.14.3** rather than the newest AGP 9 and Kotlin 2.4,

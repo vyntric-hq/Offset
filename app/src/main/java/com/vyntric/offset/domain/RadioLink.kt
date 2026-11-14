@@ -4,6 +4,7 @@
  */
 package com.vyntric.offset.domain
 
+import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.SerialPort
 import kotlinx.coroutines.flow.StateFlow
 
@@ -27,12 +28,13 @@ interface RadioLink {
     fun requestPermission()
 
     /**
-     * Opens the port, runs [block] (blocking protocol code) on a background thread and always
-     * closes the port. Only one session runs at a time.
+     * Opens the port for a radio of [driver]'s family (its serial speed, or its simulator), runs
+     * [block] (blocking protocol code) on a background thread and always closes the port. Only
+     * one session runs at a time.
      *
      * @throws LinkUnavailableException when there is no usable cable.
      */
-    suspend fun <T> session(block: (SerialPort) -> T): T
+    suspend fun <T> session(driver: RadioDriver, block: (SerialPort) -> T): T
 }
 
 class LinkUnavailableException(message: String) : Exception(message)

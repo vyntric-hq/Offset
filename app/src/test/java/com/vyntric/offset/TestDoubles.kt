@@ -6,24 +6,29 @@ import com.vyntric.offset.domain.ImageLibrary
 import com.vyntric.offset.domain.LinkUnavailableException
 import com.vyntric.offset.domain.RadioLink
 import com.vyntric.offset.domain.StoredImage
+import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.RadioImage
 import com.vyntric.offset.protocol.SerialPort
-import com.vyntric.offset.protocol.SimulatedRadio
+import com.vyntric.offset.protocol.SimulatedDevice
+import com.vyntric.offset.protocol.Uv5rImage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 
-/** Transport boundary: a RadioLink backed by the protocol module's SimulatedRadio. */
-class SimLink(var radio: SimulatedRadio) : RadioLink {
+/** Transport boundary: a RadioLink backed by one of the protocol module's simulated radios. */
+class SimLink<D : SimulatedDevice>(var radio: D) : RadioLink {
+    /** The driver of the last session, so tests can check which protocol was used. */
+    var lastDriver: RadioDriver? = null
     var unplugged = false
     var sessions = 0
     /** Runs before each session; lets a test swap radios or inject faults between sessions. */
     var beforeSession: (Int) -> Unit = {}
     override val cable: StateFlow<CableState> = MutableStateFlow(CableState.Simulated("test"))
     override fun requestPermission() = Unit
-    override suspend fun <T> session(block: (SerialPort) -> T): T {
+    override suspend fun <T> session(driver: RadioDriver, block: (SerialPort) -> T): T {
+        lastDriver = driver
         beforeSession(sessions++)
         if (unplugged) throw LinkUnavailableException("No programming cable found.")
         return try { block(radio) } finally { radio.endSession() }
@@ -47,8 +52,8 @@ class MemoryLibrary : ImageLibrary {
         return id
     }
     override suspend fun load(id: Long) = items[id]
-    override suspend fun hasFactoryImage(identHex: String) =
-        if (failHasFactory) throw IllegalStateException("database locked") else items.values.any { it.kind == ImageKind.FACTORY && it.image.identHex == identHex }
+    override suspend fun hasFactoryImage(identity: String) =
+        if (failHasFactory) throw IllegalStateException("database locked") else items.values.any { it.kind == ImageKind.FACTORY && it.image.identity == identity }
 }
 
 val fixedClock: Clock = Clock.fixed(Instant.parse("2026-11-13T12:00:00Z"), ZoneOffset.UTC)
@@ -58,7 +63,7 @@ object AppFixtures {
         requireNotNull(AppFixtures::class.java.getResourceAsStream("/$name")) { "missing $name" }.use { it.readBytes() }
 
     /** The factory UV-5R image bundled as the simulated radio. */
-    fun factoryImage(): RadioImage = RadioImage.of(
+    fun factoryImage(): Uv5rImage = Uv5rImage.of(
         requireNotNull(AppFixtures::class.java.getResourceAsStream("/fixtures/baoclone-uv5r-factory.img")).use { it.readBytes() }
     )
 }

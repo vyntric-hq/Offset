@@ -31,5 +31,5 @@ data class StoredImage(
 interface ImageLibrary {
     suspend fun save(image: RadioImage, name: String, kind: ImageKind, notes: String = ""): Long
     suspend fun load(id: Long): StoredImage?
-    suspend fun hasFactoryImage(identHex: String): Boolean
+    suspend fun hasFactoryImage(identity: String): Boolean
 }

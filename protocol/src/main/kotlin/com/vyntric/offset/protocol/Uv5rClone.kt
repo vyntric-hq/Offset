@@ -43,22 +43,22 @@ class Uv5rClone(
     }
 
     /** Downloads the full image (ident, main block, aux block). Rule 1: always the whole image. */
-    fun download(phase: CloneProgress.Phase = CloneProgress.Phase.READING): RadioImage = io {
+    fun download(phase: CloneProgress.Phase = CloneProgress.Phase.READING): Uv5rImage = io {
         val ident = identify()
         val (_, droppedByte) = readFirmwareProbe()
-        val total = RadioImage.MAIN_SIZE + RadioImage.AUX_SIZE
+        val total = Uv5rImage.MAIN_SIZE + Uv5rImage.AUX_SIZE
         var done = 0
-        val main = ByteArray(RadioImage.MAIN_SIZE)
-        for (addr in 0 until RadioImage.MAIN_SIZE step READ_BLOCK) {
+        val main = ByteArray(Uv5rImage.MAIN_SIZE)
+        for (addr in 0 until Uv5rImage.MAIN_SIZE step READ_BLOCK) {
             readBlock(addr, READ_BLOCK).copyInto(main, addr)
             done += READ_BLOCK
             onProgress(CloneProgress(phase, done, total))
         }
-        val aux = ByteArray(RadioImage.AUX_SIZE)
-        val auxStart = RadioImage.AUX_RADIO_START
+        val aux = ByteArray(Uv5rImage.AUX_SIZE)
+        val auxStart = Uv5rImage.AUX_RADIO_START
         val tailStart = 0x1FC0
         var addr = auxStart
-        while (addr < RadioImage.RADIO_END) {
+        while (addr < Uv5rImage.RADIO_END) {
             // Newer radios drop byte 0x1FCF when the last 0x40 bytes are read as one block.
             val size = if (droppedByte && addr >= tailStart) 0x10 else READ_BLOCK
             readBlock(addr, size).copyInto(aux, addr - auxStart)
@@ -66,7 +66,7 @@ class Uv5rClone(
             done += size
             onProgress(CloneProgress(phase, done, total))
         }
-        RadioImage.assemble(ident, main, aux)
+        Uv5rImage.assemble(ident, main, aux)
     }
 
     /**
@@ -80,7 +80,7 @@ class Uv5rClone(
      *   The ident names a model, not a unit, so this is what catches a second radio of the same
      *   model being connected between the read and the write.
      */
-    fun upload(image: RadioImage, imageOffsets: List<Int>, expectedBefore: RadioImage? = null) = io {
+    fun upload(image: Uv5rImage, imageOffsets: List<Int>, expectedBefore: Uv5rImage? = null) = io {
         val bad = imageOffsets.filterNot { ImageRegions.isWritableBlock(it) }
         if (bad.isNotEmpty()) {
             throw RadioException.Unsupported("Refusing to write outside the channel and name regions")
@@ -110,7 +110,7 @@ class Uv5rClone(
         val total = imageOffsets.size * ImageRegions.BLOCK
         onProgress(CloneProgress(CloneProgress.Phase.WRITING, 0, total))
         imageOffsets.sorted().forEachIndexed { i, off ->
-            sendBlock(RadioImage.radioAddress(off), bytes.copyOfRange(off, off + ImageRegions.BLOCK))
+            sendBlock(Uv5rImage.radioAddress(off), bytes.copyOfRange(off, off + ImageRegions.BLOCK))
             onProgress(CloneProgress(CloneProgress.Phase.WRITING, (i + 1) * ImageRegions.BLOCK, total))
         }
     }
@@ -158,12 +158,12 @@ class Uv5rClone(
     }
 
     /** Reads the channel and name memory and compares it with [expected]. */
-    private fun matchesWritableRegions(expected: RadioImage): Boolean {
+    private fun matchesWritableRegions(expected: Uv5rImage): Boolean {
         val bytes = expected.bytes()
         for (region in ImageRegions.WRITABLE) {
             var off = region.first
             while (off <= region.last) {
-                val live = readBlock(RadioImage.radioAddress(off), READ_BLOCK)
+                val live = readBlock(Uv5rImage.radioAddress(off), READ_BLOCK)
                 if (!live.contentEquals(bytes.copyOfRange(off, off + READ_BLOCK))) return false
                 off += READ_BLOCK
             }

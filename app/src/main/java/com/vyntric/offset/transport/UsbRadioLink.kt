@@ -18,8 +18,8 @@ import com.hoho.android.usbserial.driver.UsbSerialProber
 import com.vyntric.offset.domain.CableState
 import com.vyntric.offset.domain.LinkUnavailableException
 import com.vyntric.offset.domain.RadioLink
+import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.SerialPort
-import com.vyntric.offset.protocol.Uv5rClone
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,7 +32,8 @@ import java.io.IOException
 
 /**
  * The programming cable over USB OTG, through usb-serial-for-android (FTDI, PL2303, CH34x,
- * CP210x). Tracks attach, detach and permission, and opens the port at 9600 8N1 per session.
+ * CP210x, and USB CDC serial devices). Tracks attach, detach and permission, and opens the port
+ * at the radio family's speed, 8N1, per session.
  */
 class UsbRadioLink(private val context: Context) : RadioLink {
     private val usb = context.getSystemService(UsbManager::class.java)
@@ -86,7 +87,7 @@ class UsbRadioLink(private val context: Context) : RadioLink {
         usb?.requestPermission(driver.device, pending)
     }
 
-    override suspend fun <T> session(block: (SerialPort) -> T): T = mutex.withLock {
+    override suspend fun <T> session(radio: RadioDriver, block: (SerialPort) -> T): T = mutex.withLock {
         // Give the radio a moment between back to back clone sessions (read, write, verify).
         val wait = SESSION_GAP_MS - (System.currentTimeMillis() - lastClosedAt)
         if (wait > 0) delay(wait)
@@ -102,7 +103,7 @@ class UsbRadioLink(private val context: Context) : RadioLink {
                 val port = driver.ports.first()
                 try {
                     port.open(connection)
-                    port.setParameters(Uv5rClone.BAUD_RATE, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
+                    port.setParameters(radio.baudRate, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
                     runCatching { port.dtr = true; port.rts = true }
                     block(UsbSerialAdapter(port))
                 } finally {

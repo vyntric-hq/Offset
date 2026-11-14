@@ -86,8 +86,13 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
             InsetSection(
                 header = "RepeaterBook",
                 footer = if (!s.secureStorage) "Encrypted storage is unavailable on this device, so a token cannot be saved."
-                else "Generate a personal token for Offset at repeaterbook.com under API Apps. It is stored encrypted on this phone " +
-                    "and only ever sent to repeaterbook.com. Your email goes in the User-Agent, as RepeaterBook requires.",
+                else "Optional. Hearham, IRLP and OpenStreetMap data work without an account.\n\n" +
+                    "To add RepeaterBook: 1. Create a RepeaterBook account (RepeaterBook requires an amateur or US GMRS " +
+                    "callsign). 2. Tap Token page and sign in; the sign-in page is RepeaterBook's own, called Vista. " +
+                    "3. Pick Offset, tap generate, and copy the token (it is shown once). 4. Paste it here with your email " +
+                    "and tap Test connection. Offset appears on that page only once RepeaterBook has approved it.\n\n" +
+                    "The token is stored encrypted on this phone and only ever sent to repeaterbook.com. Your email goes " +
+                    "in the User-Agent, as RepeaterBook requires.",
             ) {
                 cell {
                     TextFieldRow("Token", token, { token = it.trim() }, placeholder = "rbuapp_...",
@@ -100,7 +105,9 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
                 if (dirty) cell { ButtonRow("Save", enabled = s.secureStorage) { vm.saveCredentials(token, email) } }
                 cell { ButtonRow(if (s.testing) "Testing" else "Test connection", enabled = !dirty && !s.testing && s.token.isNotBlank() && s.email.contains('@')) { vm.testConnection() } }
                 if (s.token.isNotBlank()) cell { ButtonRow("Remove token", destructive = true) { vm.clearCredentials() } }
-                cell { ButtonRow("Get a token at repeaterbook.com") { uri.openUri("https://www.repeaterbook.com/user/api_apps.php") } }
+                cell { ButtonRow("Create a RepeaterBook account") { uri.openUri(RB_REGISTER) } }
+                cell { ButtonRow("Token page (sign in)") { uri.openUri(RB_TOKENS) } }
+                cell { ButtonRow("How RepeaterBook tokens work") { uri.openUri(RB_HELP) } }
             }
             s.testResult?.let { SectionFooter(it, Modifier.padding(top = 4.dp)) }
         }
@@ -139,7 +146,7 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
         }
         if (BuildConfig.DEBUG) {
             item(key = "debug") {
-                InsetSection(header = "Debug", footer = "Debug builds only. The simulated radio speaks the UV-5R clone protocol in memory, so every screen works without hardware.") {
+                InsetSection(header = "Debug", footer = "Debug builds only. The simulated radio speaks the selected radio type's clone protocol in memory, so every screen works without hardware.") {
                     cell { ToggleRow("Simulated radio", s.settings.simulatedRadio, { on -> vm.update { it.copy(simulatedRadio = on) } }) }
                     cell { ButtonRow("Reset simulated radio") { vm.resetSimulatedRadio() } }
                 }
@@ -153,3 +160,7 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
         item(key = "pad") { Box(Modifier.padding(8.dp)) }
     }
 }
+
+private const val RB_REGISTER = "https://www.repeaterbook.com/index.php/component/users/?view=registration"
+private const val RB_TOKENS = "https://www.repeaterbook.com/user/api_apps.php"
+private const val RB_HELP = "https://www.repeaterbook.com/wiki/doku.php?id=api"

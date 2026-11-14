@@ -14,14 +14,21 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
-/** A radio image with its metadata. Raw bytes are the CHIRP layout without the trailer. */
+/**
+ * A radio image with its metadata. Raw bytes are the family's image layout (CHIRP's, where CHIRP
+ * supports the radio) without the trailer. [radio] is the RadioDriver id; [identHex] holds the
+ * image identity (the handshake ident in hex for the UV-5R family, the model for others).
+ */
 @Entity(tableName = "images", indices = [Index("identHex"), Index("kind")])
 data class ImageEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val kind: String,
+    @ColumnInfo(defaultValue = "uv5r") val radio: String,
     val identHex: String,
     val model: String,
     val firmware: String?,
@@ -40,6 +47,7 @@ data class ImageSummaryRow(
     val id: Long,
     val name: String,
     val kind: String,
+    val radio: String,
     val identHex: String,
     val model: String,
     val firmware: String?,
@@ -60,7 +68,7 @@ data class StagingEntity(
 @Dao
 interface ImageDao {
     @Query(
-        "SELECT id, name, kind, identHex, model, firmware, channelCount, notes, createdAt, updatedAt " +
+        "SELECT id, name, kind, radio, identHex, model, firmware, channelCount, notes, createdAt, updatedAt " +
             "FROM images ORDER BY updatedAt DESC LIMIT :limit"
     )
     fun observeSummaries(limit: Int): Flow<List<ImageSummaryRow>>
@@ -102,8 +110,19 @@ interface StagingDao {
     suspend fun put(entity: StagingEntity)
 }
 
-@Database(entities = [ImageEntity::class, StagingEntity::class], version = 1, exportSchema = true)
+@Database(entities = [ImageEntity::class, StagingEntity::class], version = 2, exportSchema = true)
 abstract class OffsetDatabase : RoomDatabase() {
     abstract fun images(): ImageDao
     abstract fun staging(): StagingDao
+
+    companion object {
+        /** 0.3.0 adds the radio family; every earlier image is a UV-5R family image. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE images ADD COLUMN radio TEXT NOT NULL DEFAULT 'uv5r'")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2)
+    }
 }

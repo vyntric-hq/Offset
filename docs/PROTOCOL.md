@@ -216,9 +216,9 @@ kept for repeater search.
 | --- | --- |
 | 1. Read the full image first | Every write starts with `download()` of the connected radio. |
 | 2. Never write a mismatched ident | Blocked if the radio is not the one on the confirmation sheet, if a restored image's ident or model differs, and again inside `upload()`, which also re-reads the channel and name memory to catch a different unit of the same model. |
-| 3. Patch only channels and names | The target is the fresh radio image with channels applied (or a restored image's two regions copied in); `ImageRegions.differsOnlyInWritableRegions` must hold. |
+| 3. Patch only channels and names | The target is the fresh radio image with channels applied (or a restored image's writable memory copied in); `RadioImage.differsOnlyInWritableRegions` must hold. Each driver defines its writable memory (UV-5R: channel and name regions; DM-32UV: channel, TX contact, scan list and zone pages; RT-950 Pro: the channel segment). |
 | 4. Backup before every write | The fresh image is saved to the library as "Backup before write <timestamp>"; if that fails nothing is written. |
-| 5. Read back and compare | A third session downloads the radio and `ImageRegions.mismatchedChannels` reports per channel differences. |
+| 5. Read back and compare | A third session downloads the radio and `RadioImage.mismatchedChannels` reports per channel differences. |
 | 6. Confirmation sheet | Shown before every write and restore, naming model, firmware, ident, image name and channel count. |
 | 7. Detach, timeout, permission | Every failure becomes an outcome: Blocked (nothing written), Failed with `radioMayBePartial` and the backup id, or Mismatch. A storage failure after a successful write still reports the verified write. Writes run in the application scope, are never cancelled midway, and `RadioOperations` always returns to idle. |
 
@@ -228,3 +228,30 @@ An in-memory radio with a 0x2000 byte address space that implements the same sta
 magic, ident, clone mode, `S` reads with the ACK of ACK, `X` writes with ACK. It never blocks; an
 empty output queue behaves like a serial timeout. Fault injection: `detachAfterHostBytes`,
 `silent`, `corruptWriteAddresses`. Debug builds expose it under Settings, Debug.
+
+## Other radio families
+
+Each family implements `RadioDriver` (protocol module, `RadioDriver.kt`): image format, clone
+protocol, serial speed, channel limits (`RadioProfile`) and writable memory. The use cases in the
+app never touch bytes directly.
+
+**Baofeng DM-32UV** (`Dm32uv*.kt`, ported from CHIRP's `baofeng_dm32uv.py`). 115200 baud. Session:
+`PSEARCH` (retried, reply ACK + `DP570UV`), `PASSSTA` (password flags; protected radios are
+refused), `SYSINFO`, `V` info queries (firmware, codeplug range), `G` and `PROGRAM` to enter
+programming mode, then every 4 KB flash page's last byte is read to learn which tag each page
+holds. Reads are `R` + 24 bit address + 16 bit length; writes are whole aligned pages with `W`,
+each acknowledged and read back. The image is CHIRP's logical layout, one 4 KB slot per tag, so
+.img files are interchangeable with CHIRP. Offset writes only pages with tags 0x12 to 0x41
+(channels), 0x42 and 0x43 (TX contacts), 0x11 (scan lists) and 0x5C to 0x64 (zones), and only
+those that differ; the zone header bytes that follow the radio's display are taken from the radio.
+
+**Radtel RT-950 Pro** (`Rt950Pro*.kt`, protocol from Hertzz58's `cps_flash.py`, layout from Nathan
+Barguss's tools). 115200 baud. Handshake `PROGRAMBT9000U` / ACK, `F` (16 bytes), `M` (12 byte
+model), then a 25 byte `SEND` key frame selecting one of 20 four byte XOR keys. Payload bytes are
+XORed except where the key byte is a space or the data byte is 00, FF, the key byte or its
+complement. Blocks are 128 bytes: read `52 hi lo 80`, write `57 hi lo 80` + data, end with `E`.
+The image is six segments (channels 0x0000 to 0x7800, VFO, function, DTMF, modulation, modulation
+names) plus APRS (commands 54 and 55), 33,152 bytes. Channel records are 32 bytes: BCD RX and TX,
+two tone words (DCS index or CTCSS tenths), signalling, PTT ID, power and scrambler, flags (narrow,
+busy lockout, scan, TX enable, AM), frequency hopping code, 12 byte GB2312 name. Offset writes the
+channel segment only.

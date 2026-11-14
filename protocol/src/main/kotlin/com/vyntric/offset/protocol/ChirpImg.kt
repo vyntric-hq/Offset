@@ -19,35 +19,35 @@ object ChirpImg {
     val MAGIC: ByteArray = byteArrayOf(0x00, 0xFF.toByte()) + "chirp".toByteArray(Charsets.US_ASCII) +
         byteArrayOf(0xEE.toByte()) + "img".toByteArray(Charsets.US_ASCII) + byteArrayOf(0x00, 0x01)
 
-    data class Parsed(val image: RadioImage, val metadata: Map<String, String>) {
-        /** The model named in the metadata, if CHIRP wrote one we know. */
-        val metadataModel: RadioModel? get() = RadioModel.fromChirpModel(metadata["model"])
-    }
+    data class Parsed(val image: RadioImage, val metadata: Map<String, String>)
 
-    fun encode(image: RadioImage, model: RadioModel = image.model): ByteArray {
-        val json = linkedMapOf(
-            "mem_extra" to null,
-            "rclass" to model.chirpRclass,
-            "vendor" to model.vendor,
-            "model" to model.chirpModel,
-            "variant" to "",
-        ).entries.joinToString(", ", "{", "}") { (k, v) ->
+    fun encode(image: RadioImage): ByteArray {
+        val fields = linkedMapOf<String, String?>("mem_extra" to null)
+        image.chirpMetadata.forEach { (k, v) -> fields[k] = v }
+        val json = fields.entries.joinToString(", ", "{", "}") { (k, v) ->
             "\"$k\": " + if (v == null) "{}" else "\"${escape(v)}\""
         }
         val trailer = Base64.getEncoder().encode(json.toByteArray(Charsets.UTF_8))
         return image.bytes() + MAGIC + trailer
     }
 
-    /** Parses a CHIRP .img (with or without trailer) or a bare image dump. */
+    /**
+     * Parses a CHIRP .img (with or without trailer) or a bare image dump. The family comes from
+     * the metadata model when there is one, otherwise from the image's size and shape.
+     */
     fun decode(file: ByteArray): Parsed {
         val idx = indexOf(file, MAGIC)
         val raw = if (idx >= 0) file.copyOfRange(0, idx) else file
         val metadata = if (idx >= 0) parseMetadata(file.copyOfRange(idx + MAGIC.size, file.size)) else emptyMap()
         val model = metadata["model"]
-        if (model != null && RadioModel.fromChirpModel(model) == null) {
-            throw InvalidImageException("This .img is for a $model, which Offset does not support.")
+        val driver = if (model != null) {
+            RadioDrivers.forChirpModel(model)
+                ?: throw InvalidImageException("This .img is for a $model, which Offset does not support.")
+        } else {
+            RadioDrivers.recognize(raw)
+                ?: throw InvalidImageException("Offset does not recognize this ${raw.size} byte image.")
         }
-        return Parsed(RadioImage.of(raw), metadata)
+        return Parsed(driver.image(raw), metadata)
     }
 
     /** Extracts flat string values from the metadata JSON. Nested objects are ignored. */

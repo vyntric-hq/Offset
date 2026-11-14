@@ -17,7 +17,7 @@ class CloneProtocolTest {
             val progress = mutableListOf<CloneProgress>()
             val read = clone(radio, progress).download()
             assertEquals("fixture $name", img, read)
-            assertEquals(RadioImage.MAIN_SIZE + RadioImage.AUX_SIZE, progress.last().bytesDone)
+            assertEquals(Uv5rImage.MAIN_SIZE + Uv5rImage.AUX_SIZE, progress.last().bytesDone)
         }
     }
 
@@ -104,7 +104,7 @@ class CloneProtocolTest {
         val radio = SimulatedRadio.fromImage(Fixtures.uv5rFactory())
         val before = clone(radio).download()
         radio.endSession()
-        val after = before.withChannels(List(RadioImage.CHANNEL_COUNT) { Channel(146_000_000L + it * 15_000L, name = "CH$it") })
+        val after = before.withChannels(List(Uv5rImage.CHANNEL_COUNT) { Channel(146_000_000L + it * 15_000L, name = "CH$it") })
         // Handshake plus firmware probe is 24 bytes; each block written is 20 bytes.
         radio.detachAfterHostBytes = radio.hostBytesReceived + 24 + 20 * 10
         try {
@@ -123,7 +123,7 @@ class CloneProtocolTest {
         val before = clone(radio).download()
         radio.endSession()
         val after = before.withChannel(2, Channel(147_000_000, Duplex.PLUS, 600_000))
-        radio.corruptWriteAddresses = setOf(RadioImage.radioAddress(RadioImage.channelOffset(2)))
+        radio.corruptWriteAddresses = setOf(Uv5rImage.radioAddress(Uv5rImage.channelOffset(2)))
         clone(radio).upload(after, ImageRegions.changedBlocks(before, after))
         radio.endSession()
         assertEquals(listOf(2), ImageRegions.mismatchedChannels(after, clone(radio).download()))

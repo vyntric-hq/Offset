@@ -35,7 +35,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vyntric.offset.AppContainer
 import com.vyntric.offset.data.ImageSummary
 import com.vyntric.offset.domain.ImageKind
-import com.vyntric.offset.protocol.RadioImage
 import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.ui.components.BarAction
 import com.vyntric.offset.ui.components.CellPosition
@@ -72,7 +71,7 @@ fun ImagesScreen(container: AppContainer, onOpen: (Long) -> Unit) {
             }
             when {
                 bytes == null -> vm.say("Could not read that file.")
-                bytes.size > MAX_IMPORT_BYTES -> vm.say("That file is too large to be a UV-5R image.")
+                bytes.size > MAX_IMPORT_BYTES -> vm.say("That file is too large to be a radio image.")
                 else -> vm.import(bytes, name, onOpen)
             }
         }
@@ -89,7 +88,7 @@ fun ImagesScreen(container: AppContainer, onOpen: (Long) -> Unit) {
                 GroupedCell(CellPosition.ONLY) {
                     StateMessage(
                         title = "No images yet",
-                        message = "Reading a radio saves its factory image here. You can also import a CHIRP .img for a UV-5R or BF-F8HP.",
+                        message = "Reading a radio saves its factory image here. You can also import a CHIRP .img for a UV-5R, BF-F8HP or DM-32UV.",
                         icon = Icons.Rounded.Inventory2,
                         actionLabel = "Import .img",
                         onAction = { picker.launch(arrayOf("application/octet-stream", "*/*")) },
@@ -136,7 +135,7 @@ internal fun ImageRow(img: ImageSummary, onClick: () -> Unit) {
                 if (img.kind == ImageKind.FACTORY) { Spacer(Modifier.width(8.dp)); Tag("Factory") }
             }
             Text(
-                "${img.model}${img.firmware?.let { " ($it)" } ?: ""} · ${img.channelCount} of ${RadioImage.CHANNEL_COUNT} channels · ${Fmt.date(img.updatedAtMillis)}",
+                "${img.model}${img.firmware?.let { " ($it)" } ?: ""} · ${img.channelCount}${img.driver?.let { " of ${it.capacity}" } ?: ""} channels · ${Fmt.date(img.updatedAtMillis)}",
                 style = OffsetTheme.type.subhead, color = colors.secondaryLabel, maxLines = 2,
             )
             if (img.notes.isNotBlank() && img.kind == ImageKind.USER) {
@@ -154,4 +153,5 @@ internal fun displayName(context: android.content.Context, uri: android.net.Uri)
         }
     }.getOrNull() ?: uri.lastPathSegment?.substringAfterLast('/')
 
-private const val MAX_IMPORT_BYTES = 64 * 1024
+/** Larger than any supported image (a DM-32UV image is about 300 KB). */
+private const val MAX_IMPORT_BYTES = 1024 * 1024

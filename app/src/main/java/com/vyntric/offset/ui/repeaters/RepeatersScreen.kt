@@ -51,7 +51,6 @@ import com.vyntric.offset.domain.Geo
 import com.vyntric.offset.domain.Repeater
 import com.vyntric.offset.domain.RepeaterSource
 import com.vyntric.offset.domain.UsState
-import com.vyntric.offset.protocol.RadioModel
 import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.ui.GmrsWarningSheet
 import com.vyntric.offset.ui.map.RepeaterMapScreen
@@ -231,7 +230,7 @@ fun RepeatersScreen(container: AppContainer) {
         ChannelEditorSheet(
             title = "Manual channel",
             initial = null,
-            model = container.radioSession.last.value?.image?.model ?: RadioModel.UV5R,
+            model = container.stagingTarget().profile,
             onSave = { vm.addManual(it); manual = false },
             onDismiss = { manual = false },
         )

@@ -28,7 +28,7 @@ fun AboutScreen(onBack: () -> Unit) {
 
     LargeTitleScreen(title = "About", onBack = onBack, backLabel = "Settings") {
         item(key = "app") {
-            InsetSection(footer = "Offset programs Baofeng UV-5R family radios over a USB cable. No accounts, no analytics, no tracking.") {
+            InsetSection(footer = "Offset programs Baofeng UV-5R family, Baofeng DM-32UV and Radtel RT-950 Pro radios over a USB cable. No accounts, no analytics, no tracking.") {
                 cell { DetailRow("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})") }
                 cell { DetailRow("Commit", BuildConfig.GIT_COMMIT) }
                 cell { DetailRow("License", "GPL-3.0-or-later") }
@@ -38,12 +38,18 @@ fun AboutScreen(onBack: () -> Unit) {
         item(key = "credits") {
             InsetSection(header = "Credits") {
                 cell {
-                    CellRow("CHIRP", subtitle = "The UV-5R clone protocol, memory map and .img format are ported from CHIRP's uv5r.py (GPL).",
+                    CellRow("CHIRP", subtitle = "The UV-5R and DM-32UV clone protocols, memory maps and the .img format are ported from CHIRP's uv5r.py and baofeng_dm32uv.py (GPL).",
                         chevron = true) { uri.openUri("https://github.com/kk7ds/chirp") }
                 }
                 cell {
                     CellRow("baoclone", subtitle = "Protocol cross check and test images, by Serge Vakulenko (BSD).", chevron = true) {
                         uri.openUri("https://github.com/sergev/baoclone")
+                    }
+                }
+                cell {
+                    CellRow("RT-950 Pro reverse engineering", subtitle = "Clone protocol from Hertzz58's RT-950 Pro firmware tools (GPL). " +
+                        "Channel layout from Nathan Barguss, 2E0NBS (MIT).", chevron = true) {
+                        uri.openUri("https://github.com/NathanBarguss/Chirp_Radtel-RT-950-Pro")
                     }
                 }
                 cell {

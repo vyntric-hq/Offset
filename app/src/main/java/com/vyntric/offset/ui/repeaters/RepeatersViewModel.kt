@@ -25,7 +25,6 @@ import com.vyntric.offset.domain.RepeaterSource
 import com.vyntric.offset.domain.Service
 import com.vyntric.offset.domain.UsState
 import com.vyntric.offset.protocol.Channel
-import com.vyntric.offset.protocol.RadioModel
 import com.vyntric.offset.ui.Fmt
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -310,12 +309,12 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
             return
         }
         viewModelScope.launch {
-            val model = c.radioSession.last.value?.image?.model ?: RadioModel.UV5R
-            val r = c.staging.update { list -> c.buildStaging.addRepeaters(list, repeaters, model).let { it.staging to it } }
+            val target = c.stagingTarget()
+            val r = c.staging.update { list -> c.buildStaging.addRepeaters(list, repeaters, target).let { it.staging to it } }
             val parts = listOfNotNull(
                 "Added ${r.added} to staging.",
                 r.duplicates.takeIf { it > 0 }?.let { "$it already staged." },
-                r.overflow.takeIf { it > 0 }?.let { "$it did not fit (128 channel limit)." },
+                r.overflow.takeIf { it > 0 }?.let { "$it did not fit (${target.capacity} channel limit)." },
             )
             _state.update { it.copy(selected = emptySet(), message = parts.joinToString(" ")) }
         }
@@ -327,10 +326,11 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
             return
         }
         viewModelScope.launch {
-            val r = c.staging.update { list -> c.buildStaging.add(list, listOf(channel), ChannelOrigin.MANUAL).let { it.staging to it } }
+            val target = c.stagingTarget()
+            val r = c.staging.update { list -> c.buildStaging.add(list, listOf(channel), ChannelOrigin.MANUAL, target).let { it.staging to it } }
             _state.update {
                 it.copy(message = when {
-                    r.overflow > 0 -> "Staging is full (128 channels)."
+                    r.overflow > 0 -> "Staging is full (${target.capacity} channels)."
                     r.duplicates > 0 -> "That channel is already staged."
                     else -> "Added ${channel.name.ifBlank { Fmt.mhz(channel.rxFreqHz) }} to staging."
                 })

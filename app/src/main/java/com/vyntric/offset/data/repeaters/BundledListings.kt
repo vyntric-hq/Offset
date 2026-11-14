@@ -44,7 +44,7 @@ internal object BundledListings {
         val url: String? = null,
     )
 
-    /** Parses the file and keeps well formed records on bands a UV-5R can use. */
+    /** Parses the file and keeps well formed records on the 2m, 70cm and GMRS bands. */
     @OptIn(ExperimentalSerializationApi::class)
     fun parse(stream: InputStream): List<Repeater> {
         val all = try {

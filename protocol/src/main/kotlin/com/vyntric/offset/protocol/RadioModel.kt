@@ -6,12 +6,12 @@
 package com.vyntric.offset.protocol
 
 /**
- * A radio profile: everything that differs between members of the UV-5R family.
+ * A UV-5R family model: everything that differs between members of the family.
  *
  * Frequency ranges are half open (`[low, high)`) as in CHIRP.
  */
 enum class RadioModel(
-    val displayName: String,
+    override val displayName: String,
     val vendor: String,
     /** CHIRP's MODEL string, written into .img metadata. */
     val chirpModel: String,
@@ -23,10 +23,10 @@ enum class RadioModel(
     val uhfHz: LongRange,
     val triPower: Boolean,
     /** Characters available for channel names. All current UV-5R variants use 7. */
-    val nameLength: Int,
+    override val nameLength: Int,
     /** Retail names that share this memory layout and are programmed with this profile. */
     val aliases: List<String>,
-) {
+) : RadioProfile {
     UV5R(
         displayName = "UV-5R",
         vendor = "Baofeng",
@@ -53,16 +53,21 @@ enum class RadioModel(
     );
 
     /** Power levels in the order the radio encodes them (index = stored value). */
-    val powerLevels: List<Power>
+    override val powerLevels: List<Power>
         get() = if (triPower) listOf(Power.HIGH, Power.MID, Power.LOW) else listOf(Power.HIGH, Power.LOW)
 
-    /** Nominal watts per level, used for CHIRP CSV export (CHIRP parses watts). */
-    fun watts(power: Power): Double = when {
+    override val bands: List<LongRange> get() = listOf(vhfHz, uhfHz)
+
+    override val nameCharset: String get() = ChannelCodec.NAME_CHARSET
+
+    override val uppercaseNames: Boolean get() = true
+
+    override fun watts(power: Power): Double = when {
         triPower -> when (power) { Power.HIGH -> 8.0; Power.MID -> 4.0; Power.LOW -> 1.0 }
         else -> when (power) { Power.HIGH, Power.MID -> 4.0; Power.LOW -> 1.0 }
     }
 
-    fun inBand(freqHz: Long): Boolean = freqHz in vhfHz || freqHz in uhfHz
+    override fun inBand(freqHz: Long): Boolean = freqHz in vhfHz || freqHz in uhfHz
 
     companion object {
         /**

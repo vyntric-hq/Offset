@@ -21,7 +21,7 @@ class SimulatedRadio(
     /** Full 0x2000 byte radio address space. */
     memory: ByteArray,
     private val acceptedMagics: List<ByteArray> = Uv5rClone.MAGICS,
-) : SerialPort {
+) : SimulatedDevice {
     private val ident = ident.copyOf()
     private val mem = memory.copyOf()
     private val out = ArrayDeque<Byte>()
@@ -72,7 +72,7 @@ class SimulatedRadio(
 
     /** Ends the clone session, as power cycling or closing the port would. */
     @Synchronized
-    fun endSession() {
+    override fun endSession() {
         state = State.IDLE
         pending.clear()
         out.clear()
@@ -91,10 +91,10 @@ class SimulatedRadio(
 
     /** The image a correct download from this radio produces. */
     @Synchronized
-    fun currentImage(): RadioImage = RadioImage.assemble(
+    override fun currentImage(): Uv5rImage = Uv5rImage.assemble(
         ident,
-        mem.copyOfRange(0, RadioImage.MAIN_SIZE),
-        mem.copyOfRange(RadioImage.AUX_RADIO_START, RadioImage.RADIO_END),
+        mem.copyOfRange(0, Uv5rImage.MAIN_SIZE),
+        mem.copyOfRange(Uv5rImage.AUX_RADIO_START, Uv5rImage.RADIO_END),
     )
 
     private fun accept(b: Byte) {
@@ -168,11 +168,11 @@ class SimulatedRadio(
         private const val ACK: Byte = 0x06
 
         /** Builds a radio whose memory matches [image]; unmapped addresses read as 0xFF. */
-        fun fromImage(image: RadioImage): SimulatedRadio {
+        fun fromImage(image: Uv5rImage): SimulatedRadio {
             val bytes = image.bytes()
-            val mem = ByteArray(RadioImage.RADIO_END) { 0xFF.toByte() }
-            bytes.copyInto(mem, 0, RadioImage.IDENT_SIZE, RadioImage.NO_AUX_SIZE)
-            if (image.hasAux) bytes.copyInto(mem, RadioImage.AUX_RADIO_START, RadioImage.NO_AUX_SIZE, RadioImage.FULL_SIZE)
+            val mem = ByteArray(Uv5rImage.RADIO_END) { 0xFF.toByte() }
+            bytes.copyInto(mem, 0, Uv5rImage.IDENT_SIZE, Uv5rImage.NO_AUX_SIZE)
+            if (image.hasAux) bytes.copyInto(mem, Uv5rImage.AUX_RADIO_START, Uv5rImage.NO_AUX_SIZE, Uv5rImage.FULL_SIZE)
             return SimulatedRadio(image.ident, mem)
         }
     }

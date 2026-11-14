@@ -1,0 +1,155 @@
+/*
+ * Offset, a UV-5R programming client.
+ * Copyright (C) 2026 Offset contributors. Licensed under GPL-3.0-or-later.
+ * Image layout from NathanBarguss/Chirp_Radtel-RT-950-Pro (rt950pro/transport.py DEFAULT_SEGMENTS,
+ * rt950pro/image.py), MIT, Copyright (c) 2025 Nathan G. Barguss, 2E0NBS.
+ */
+package com.vyntric.offset.protocol
+
+/** One contiguous range of radio memory the clone protocol reads and writes in 128 byte blocks. */
+data class Rt950ProSegment(
+    val readCommand: Int,
+    val writeCommand: Int,
+    /** Radio address of the first byte. */
+    val address: Int,
+    val length: Int,
+    /** Where the segment starts in the image. */
+    val imageOffset: Int,
+) {
+    val blocks: Int get() = length / Rt950ProImage.BLOCK
+}
+
+/**
+ * An immutable RT-950 Pro image: the decrypted clone segments concatenated in read order, the
+ * same 33,152 byte format as the dumps written by Nathan Barguss's tools.
+ * ```
+ * image 0x0000..0x7800  radio 0x0000 channels (960 x 32 bytes)   the only memory Offset writes
+ * image 0x7800..0x7900  radio 0x8000 VFO A/B/C
+ * image 0x7900..0x7A00  radio 0x9000 function settings
+ * image 0x7A00..0x7C00  radio 0xA000 DTMF
+ * image 0x7C00..0x7E00  radio 0xB000 modulation parameters
+ * image 0x7E00..0x8100  radio 0xD000 modulation names
+ * image 0x8100..0x8180  APRS 0x0000 (read with 0x54, written with 0x55)
+ * ```
+ * The image does not carry the model string; the clone checks it at every handshake.
+ */
+class Rt950ProImage private constructor(private val data: ByteArray) : RadioImage {
+
+    override val driver: RadioDriver get() = Rt950ProDriver
+    override val profile: RadioProfile get() = Rt950ProProfile
+    override val identity: String get() = MODEL_NAME
+    override val modelName: String get() = MODEL_NAME
+    override val firmwareVersion: String? get() = null
+    override val size: Int get() = data.size
+
+    override fun bytes(): ByteArray = data.copyOf()
+
+    override fun channel(index: Int): Channel? {
+        require(index in 0 until CHANNEL_COUNT) { "Channel index $index out of range" }
+        return Rt950ProCodec.decode(data, channelOffset(index))
+    }
+
+    override val usedChannelCount: Int get() = (0 until CHANNEL_COUNT).count { channel(it) != null }
+
+    /**
+     * Replaces every slot. A slot whose channel is unchanged keeps its exact bytes; an edited
+     * channel is re-encoded on top of its old record; a deleted one becomes all 0xFF. A record
+     * Offset cannot decode (a frequency that is not BCD) is left alone when its slot stays empty.
+     */
+    override fun withChannels(slots: List<Channel?>): Rt950ProImage {
+        require(slots.size <= CHANNEL_COUNT) { "At most $CHANNEL_COUNT channels, got ${slots.size}" }
+        val out = data.copyOf()
+        for (i in 0 until CHANNEL_COUNT) writeSlot(out, i, slots.getOrNull(i))
+        return Rt950ProImage(out)
+    }
+
+    fun withChannel(index: Int, channel: Channel?): Rt950ProImage {
+        require(index in 0 until CHANNEL_COUNT) { "Channel index $index out of range" }
+        val out = data.copyOf()
+        writeSlot(out, index, channel)
+        return Rt950ProImage(out)
+    }
+
+    override fun withWritableRegionsOf(source: RadioImage): Rt950ProImage {
+        require(source is Rt950ProImage) { "Not an RT-950 Pro image" }
+        val out = data.copyOf()
+        source.data.copyInto(out, WRITABLE.first, WRITABLE.first, WRITABLE.last + 1)
+        return Rt950ProImage(out)
+    }
+
+    override fun differsOnlyInWritableRegions(other: RadioImage): Boolean {
+        if (other !is Rt950ProImage) return false
+        return data.indices.all { it in WRITABLE || data[it] == other.data[it] }
+    }
+
+    override fun mismatchedChannels(actual: RadioImage): List<Int> {
+        require(actual is Rt950ProImage) { "Not an RT-950 Pro image" }
+        return (0 until CHANNEL_COUNT).filter { i ->
+            val o = channelOffset(i)
+            (o until o + RECORD).any { data[it] != actual.data[it] }
+        }
+    }
+
+    override val chirpMetadata: Map<String, String>
+        get() = linkedMapOf("rclass" to "RT950Pro", "vendor" to "Radtel", "model" to MODEL_NAME, "variant" to "")
+
+    private fun writeSlot(out: ByteArray, index: Int, channel: Channel?) {
+        val o = channelOffset(index)
+        val old = out.copyOfRange(o, o + RECORD)
+        if (channel == null) {
+            if (Rt950ProCodec.decode(old) != null) out.fill(0xFF.toByte(), o, o + RECORD)
+            return
+        }
+        Rt950ProCodec.encode(channel, old).copyInto(out, o)
+    }
+
+    override fun equals(other: Any?): Boolean = other is Rt950ProImage && data.contentEquals(other.data)
+    override fun hashCode(): Int = data.contentHashCode()
+    override fun toString(): String = "Rt950ProImage($usedChannelCount channels)"
+
+    companion object {
+        const val MODEL_NAME = "RT-950 Pro"
+        const val CHANNEL_COUNT = 960
+        const val BLOCK = 0x80
+        private const val RECORD = Rt950ProCodec.RECORD_SIZE
+
+        const val READ = 0x52
+        const val WRITE = 0x57
+        const val READ_APRS = 0x54
+        const val WRITE_APRS = 0x55
+
+        /** Every segment, in the order the hardware tested transport reads them. */
+        val SEGMENTS: List<Rt950ProSegment> = run {
+            var offset = 0
+            listOf(
+                Triple(READ, WRITE, 0x0000 to 0x7800),
+                Triple(READ, WRITE, 0x8000 to 0x0100),
+                Triple(READ, WRITE, 0x9000 to 0x0100),
+                Triple(READ, WRITE, 0xA000 to 0x0200),
+                Triple(READ, WRITE, 0xB000 to 0x0200),
+                Triple(READ, WRITE, 0xD000 to 0x0300),
+                Triple(READ_APRS, WRITE_APRS, 0x0000 to 0x0080),
+            ).map { (r, w, range) ->
+                Rt950ProSegment(r, w, range.first, range.second, offset).also { offset += range.second }
+            }
+        }
+
+        /** The channel segment, the only memory Offset writes. */
+        val CHANNELS: Rt950ProSegment get() = SEGMENTS[0]
+
+        const val SIZE = 33_152
+
+        /** Image offsets Offset may write: the 960 channel records. Rule 3. */
+        val WRITABLE: IntRange = 0 until CHANNEL_COUNT * RECORD
+
+        fun channelOffset(index: Int): Int = index * RECORD
+
+        /** Wraps raw bytes after validating the size. */
+        fun of(bytes: ByteArray): Rt950ProImage {
+            if (bytes.size != SIZE) {
+                throw InvalidImageException("Image is ${bytes.size} bytes; an RT-950 Pro image is $SIZE bytes.")
+            }
+            return Rt950ProImage(bytes.copyOf())
+        }
+    }
+}

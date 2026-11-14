@@ -5,6 +5,26 @@ All notable changes to Offset are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The release workflow publishes the section whose
 heading matches the tag as the GitHub Release notes, so every tag needs a section here.
 
+## [0.3.0] - 2026-11-14
+
+### Added
+- Baofeng DM-32UV support, ported from CHIRP's driver and cross checked byte for byte against
+  it: read, write and restore of analog channels across 4000 channels. DMR channels are shown and
+  kept exactly as they are. Channels keep their numbers; new ones go into free numbers and a zone
+  named "Offset". Deleting a channel removes it from zones and scan lists, as CHIRP does.
+- Radtel RT-950 Pro support (experimental): read, write and restore of its 960 channels, from
+  community reverse engineering. Only channel memory is written; AM, frequency hopping and
+  scrambler settings are kept as stored. Writes carry an extra warning until verified on a radio.
+- A radio type picker on the Radio tab. Images remember their radio type; existing images become
+  UV-5R family images on upgrade.
+- CHIRP .img import and export for the DM-32UV (compatible with CHIRP), CHIRP CSV numbering per
+  radio, and RepeaterBook setup steps in Settings (account, callsign requirement, sign-in, token).
+
+### Changed
+- A write checks only the channels it changes, so a channel already on the radio that Offset
+  would not create itself (an airband channel, for example) no longer blocks it.
+- Radio code is organized as one driver per radio family behind a common interface.
+
 ## [0.2.0] - 2026-11-13
 
 ### Added

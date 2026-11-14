@@ -33,6 +33,8 @@ data class Settings(
     val simulatedRadio: Boolean = false,
     /** The user has read the GMRS licensing and certification warning. */
     val gmrsAcknowledged: Boolean = false,
+    /** The radio type to read, a RadioDriver id. */
+    val radioType: String = "uv5r",
 ) {
     companion object {
         /** Distance option meaning "the closest [CLOSEST_COUNT] repeaters, however far". */
@@ -58,6 +60,7 @@ class SettingsRepository(private val prefs: SharedPreferences) {
             putBoolean(K_HAPTICS, next.haptics)
             putBoolean(K_SIM, next.simulatedRadio)
             putBoolean(K_GMRS_ACK, next.gmrsAcknowledged)
+            putString(K_RADIO, next.radioType)
         }
         _settings.value = next
     }
@@ -73,6 +76,7 @@ class SettingsRepository(private val prefs: SharedPreferences) {
             haptics = prefs.getBoolean(K_HAPTICS, d.haptics),
             simulatedRadio = prefs.getBoolean(K_SIM, d.simulatedRadio),
             gmrsAcknowledged = prefs.getBoolean(K_GMRS_ACK, d.gmrsAcknowledged),
+            radioType = prefs.getString(K_RADIO, null) ?: d.radioType,
         )
     }
 
@@ -88,5 +92,6 @@ class SettingsRepository(private val prefs: SharedPreferences) {
         const val K_HAPTICS = "haptics"
         const val K_SIM = "simulated_radio"
         const val K_GMRS_ACK = "gmrs_acknowledged"
+        const val K_RADIO = "radio_type"
     }
 }

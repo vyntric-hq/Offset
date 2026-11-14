@@ -30,7 +30,7 @@ object ChirpCsv {
 
     data class ParseResult(val rows: List<Row>, val errors: List<String>)
 
-    fun write(channels: List<Pair<Int, Channel>>, model: RadioModel): String {
+    fun write(channels: List<Pair<Int, Channel>>, model: RadioProfile): String {
         val sb = StringBuilder()
         sb.append(HEADER.joinToString(",")).append("\r\n")
         for ((location, ch) in channels) {
@@ -57,7 +57,7 @@ object ChirpCsv {
                 pol,
                 Tones.formatDcs(rxDtcs),
                 cross,
-                if (ch.wide) "FM" else "NFM",
+                ch.digitalMode ?: if (ch.wide) "FM" else "NFM",
                 "5.00",
                 if (ch.scanAdd) "" else "S",
                 String.format(Locale.US, "%.1fW", model.watts(ch.power)),
@@ -69,7 +69,7 @@ object ChirpCsv {
         return sb.toString()
     }
 
-    fun parse(text: String, model: RadioModel = RadioModel.UV5R): ParseResult {
+    fun parse(text: String, model: RadioProfile = RadioModel.UV5R): ParseResult {
         val lines = splitRecords(text.removePrefix("﻿"))
         if (lines.isEmpty()) return ParseResult(emptyList(), listOf("The file is empty."))
         val header = lines.first().map { it.trim() }
@@ -83,6 +83,10 @@ object ChirpCsv {
             try {
                 val freq = parseFreq(get("Frequency")) ?: throw IllegalArgumentException("bad frequency")
                 if (freq == 0L) return@forEachIndexed
+                val mode = get("Mode")
+                if (mode.isNotEmpty() && mode.uppercase() !in ANALOG_MODES) {
+                    throw IllegalArgumentException("$mode channels are not imported; Offset programs analog FM channels only")
+                }
                 val duplex = Duplex.fromChirp(get("Duplex"))
                 val offset = parseFreq(get("Offset")) ?: 0L
                 val (tx, rx) = squelchFrom(
@@ -138,17 +142,17 @@ object ChirpCsv {
         return "${n(tx)}->${n(rx)}"
     }
 
-    private fun parsePower(value: String, model: RadioModel): Power {
+    private fun parsePower(value: String, model: RadioProfile): Power {
         val v = value.trim()
-        Power.entries.firstOrNull { it.label.equals(v, true) || it.name.equals(v, true) }?.let { return it }
-        if (v.equals("Mid", true)) return Power.MID
+        Power.entries.firstOrNull { it.label.equals(v, true) || it.name.equals(v, true) }?.let { return model.nearestPower(it) }
+        if (v.equals("Mid", true) || v.equals("Middle", true)) return model.nearestPower(Power.MID)
         val watts = Regex("^([0-9.]+)\\s*[Ww]?$").find(v)?.groupValues?.get(1)?.toDoubleOrNull() ?: return Power.HIGH
-        return if (model.triPower) {
-            when { watts >= 6.0 -> Power.HIGH; watts >= 2.5 -> Power.MID; else -> Power.LOW }
-        } else {
-            if (watts >= 2.5) Power.HIGH else Power.LOW
-        }
+        // The level with the nearest nominal wattage; a tie goes to the higher level.
+        return model.powerLevels.minWith(compareBy<Power>({ kotlin.math.abs(model.watts(it) - watts) }, { -model.watts(it) }))
     }
+
+    /** CHIRP modes Offset imports as analog channels. */
+    private val ANALOG_MODES = setOf("FM", "NFM")
 
     /** CHIRP's format_freq: "%i.%06i" of MHz. */
     fun formatFreq(hz: Long): String = String.format(Locale.US, "%d.%06d", hz / 1_000_000, hz % 1_000_000)

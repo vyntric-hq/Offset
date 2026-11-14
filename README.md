@@ -1,6 +1,7 @@
 # Offset
 
-Offset programs Baofeng UV-5R family radios from an Android phone over a USB programming cable.
+Offset programs Baofeng UV-5R family, Baofeng DM-32UV and Radtel RT-950 Pro radios from an
+Android phone over a USB programming cable.
 Read the radio, find repeaters near you or in the state you are heading to, pick the ones you
 want, and write them to the radio. Keep a library of full radio images, one per state or trip,
 edit any of them, and restore the right one before you leave.
@@ -31,9 +32,25 @@ It is a programming tool first. Repeater search exists to fill channels.
 | --- | --- | --- |
 | UV-5R | Baofeng UV-5R (all firmware CHIRP's UV-5R driver accepts, including original firmware before BFB291), UV-5X, Retevis RT5R, RT5RV, RT5, Rugged RH5R, Radioddity UV-5R EX, Ansoko A-5R | High, Low |
 | BF-F8HP | Baofeng BF-F8HP, UV-5R 8W, UV-5RTP, Retevis RT5 tri-power, GA-5S, UV-5XP, TI-F8+, UV-5R Pro, TS-T9+ | High, Med, Low |
+| DM-32UV | Baofeng DM-32UV (4000 channels) | High, Med, Low |
+| RT-950 Pro (experimental) | Radtel RT-950 Pro (960 channels) | High, Med, Low |
 
-The model is detected from the firmware string the radio reports. Bluetooth radios (UV-Pro,
-VR-N76), DMR and other digital modes are out of scope.
+Pick the radio type on the Radio tab before reading; each family has its own protocol. Within the
+UV-5R family the model is detected from the firmware string.
+
+- **DM-32UV.** Ported from CHIRP's driver, which was verified on a radio, and cross checked byte
+  for byte against CHIRP. Offset programs analog channels. DMR channels are shown and kept exactly
+  as they are, never edited. Channels keep their numbers because the radio's zones and scan lists
+  refer to them; new channels go into free numbers and a zone named "Offset" so they can be
+  selected on the radio. A cable with an FTDI or CP2102 chip is recommended; some CH340 cables
+  corrupt data from this radio.
+- **RT-950 Pro (experimental).** CHIRP has no driver. The protocol and channel layout come from
+  community reverse engineering (credited below) that was tested on a radio, but Offset itself has
+  not written to one yet. Only channel memory is written; settings, VFOs and APRS are never sent.
+  AM, frequency hopping and scrambler settings are kept as stored. The radio reportedly programs
+  through a CH340 cable; which plug it uses is not confirmed.
+
+Bluetooth radios (UV-Pro, VR-N76) and programming digital channels are out of scope.
 
 ## Supported cables
 
@@ -97,7 +114,7 @@ You can also rebuild the APK yourself and compare it, see [docs/REPRODUCIBLE.md]
 
 ## Using Offset
 
-1. **Radio tab.** Connect the cable and tap Read radio. The first read of a radio is saved to
+1. **Radio tab.** Choose the radio type, connect the cable and tap Read radio. The first read of a radio is saved to
    Images as "Factory read ...". Its channels fill the staging list if staging is empty.
 2. **Repeaters tab.** Search near your GPS position, a Maidenhead grid square (EM78gh), typed
    coordinates or a county (the closest 100, or 10, 25, 50 or 100 miles; GPS can track you live), by state and county, or by text. Filter by service (amateur, GMRS, both), ham band and
@@ -128,9 +145,14 @@ Choose under Settings, Repeater data source. Details, caching and policies are i
   and the data is more than a week old, Offset refreshes it quietly; Refresh fetches on demand.
   Repeater data from [Hearham.com](https://hearham.com). IRLP node listings and OpenStreetMap
   repeater listings are bundled too and merged in (see below).
-- **RepeaterBook** (optional). Uses your own token: sign in at RepeaterBook, open
-  [API Apps](https://www.repeaterbook.com/user/api_apps.php), generate a token for Offset, then
-  paste it with your contact email under Settings, RepeaterBook, and tap Test connection. The
+- **RepeaterBook** (optional). Uses your own token. RepeaterBook accounts need an amateur or
+  US GMRS callsign; Offset cannot change that. 1. [Create an
+  account](https://www.repeaterbook.com/index.php/component/users/?view=registration). 2. Open the
+  [token page](https://www.repeaterbook.com/user/api_apps.php) and sign in (the sign-in page is
+  RepeaterBook's own, called Vista). 3. Pick Offset, generate a token and copy it; it is shown
+  once. 4. Paste it with your contact email under Settings, RepeaterBook, and tap Test
+  connection. Offset is listed there only after RepeaterBook approves it; see
+  [RepeaterBook's API page](https://www.repeaterbook.com/wiki/doku.php?id=api). The
   token is stored encrypted and sent only to repeaterbook.com. Results are cached for 24 hours
   per state. Data courtesy of [RepeaterBook.com](https://www.repeaterbook.com). RepeaterBook
   approval applies to this app only; forks must apply separately.
@@ -188,6 +210,9 @@ that speaks the same protocol, so the whole app works without hardware. See
 
 - [CHIRP](https://github.com/kk7ds/chirp) (GPL): the UV-5R protocol, memory map and file formats.
 - [baoclone](https://github.com/sergev/baoclone) by Serge Vakulenko (BSD): protocol cross check and test images.
+- CHIRP's [DM-32UV driver](https://github.com/kk7ds/chirp/blob/master/chirp/drivers/baofeng_dm32uv.py) (GPL): the DM-32UV protocol, layout and zone handling.
+- [Radtel-RT950-Pro-Firmware](https://github.com/Hertzz58/Radtel-RT950-Pro-Firmware) (GPL-3.0): the RT-950 Pro clone protocol.
+- [Chirp_Radtel-RT-950-Pro](https://github.com/NathanBarguss/Chirp_Radtel-RT-950-Pro) by Nathan Barguss, 2E0NBS (MIT): the RT-950 Pro channel layout.
 - [Hearham](https://hearham.com): repeater data from Hearham.com.
 - [IRLP](https://status.irlp.net): node data from the IRLP status page.
 - [OpenStreetMap](https://www.openstreetmap.org/copyright): repeater listings © OpenStreetMap contributors, ODbL 1.0.
@@ -201,5 +226,5 @@ Offset is free software: you can redistribute it and/or modify it under the term
 General Public License as published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-Baofeng is a trademark of its owner. Offset is not affiliated with Baofeng, CHIRP, Hearham,
+Baofeng and Radtel are trademarks of their owners. Offset is not affiliated with Baofeng, Radtel, CHIRP, Hearham,
 RepeaterBook, MapLibre or OpenFreeMap.

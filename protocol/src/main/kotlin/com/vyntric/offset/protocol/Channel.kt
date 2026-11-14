@@ -50,6 +50,11 @@ data class Channel(
     /** PTT-ID code slot, 0 based (the radio shows 1 to 15). */
     val pttIdCode: Int = 0,
     val name: String = "",
+    /**
+     * Set when the radio stores this channel in a digital mode Offset does not program (for
+     * example "DMR"). Such a channel is shown and kept byte for byte, never edited.
+     */
+    val digitalMode: String? = null,
 ) {
     /** Transmit frequency in hertz, or null when transmit is inhibited. */
     val txFreqHz: Long?

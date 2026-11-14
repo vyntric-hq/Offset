@@ -55,6 +55,7 @@ data class ImageDetailUiState(
     val connectedIdent: String? = null,
     val busy: Boolean = false,
     val message: String? = null,
+    val connectedDriver: com.vyntric.offset.protocol.RadioDriver? = null,
 ) {
     /** Why restore is not possible right now, or null when it is. Rule 2 is enforced again in WriteRadio. */
     val restoreBlocker: String?
@@ -62,8 +63,10 @@ data class ImageDetailUiState(
             image == null -> "Image not loaded."
             busy -> "Another radio operation is running."
             connectedIdent == null -> "Read the radio on the Radio tab first so Offset can confirm which radio is connected."
-            connectedIdent != image.image.identHex ->
-                "This image's ident (${image.image.identHex}) does not match the connected radio ($connectedIdent)."
+            connectedDriver != null && connectedDriver != image.image.driver ->
+                "This image is for a ${image.image.driver.displayName}; the connected radio is a ${connectedDriver.displayName}."
+            connectedIdent != image.image.identity ->
+                "This image's ident (${image.image.identity}) does not match the connected radio ($connectedIdent)."
             else -> null
         }
 }
@@ -74,7 +77,10 @@ class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : 
     val state: StateFlow<ImageDetailUiState> = combine(
         c.images.observe(id), c.radioSession.last, c.operations.state, message,
     ) { img, snap, op, msg ->
-        ImageDetailUiState(img, img == null, snap?.image?.identHex, op !is com.vyntric.offset.domain.RadioOperations.State.Idle, msg)
+        ImageDetailUiState(
+            img, img == null, snap?.image?.identity, op !is com.vyntric.offset.domain.RadioOperations.State.Idle, msg,
+            connectedDriver = snap?.image?.driver,
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ImageDetailUiState())
 
     private suspend fun current(): RadioImage? = c.images.load(id)?.image
@@ -84,7 +90,14 @@ class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : 
 
     fun setChannel(index: Int, channel: Channel?) = viewModelScope.launch {
         val img = current() ?: return@launch
-        c.images.updateImage(id, img.withChannel(index, channel))
+        val slots = img.channels().toMutableList()
+        if (index !in slots.indices || slots[index]?.digitalMode != null && channel != null) return@launch
+        slots[index] = channel
+        try {
+            c.images.updateImage(id, img.withChannels(slots))
+        } catch (e: IllegalArgumentException) {
+            message.value = "The channel could not be stored: ${e.message}"
+        }
     }
 
     fun firstFreeSlot(): Int? = state.value.image?.image?.channels()?.indexOfFirst { it == null }?.takeIf { it >= 0 }
@@ -118,7 +131,8 @@ class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : 
         val request = WriteRadio.Request(
             content = WriteRadio.Content.FromImage(stored.image),
             resultName = "${stored.name} (restored)",
-            confirmedIdentHex = s.connectedIdent,
+            confirmedIdentity = s.connectedIdent,
+            driver = stored.image.driver,
         )
         if (!c.operations.write(request)) message.value = "Another radio operation is running."
     }

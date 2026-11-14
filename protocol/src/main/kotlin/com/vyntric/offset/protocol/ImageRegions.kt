@@ -14,10 +14,10 @@ object ImageRegions {
     const val BLOCK = 0x10
 
     /** Image offsets of the 128 memory records (radio 0x0000..0x0800). */
-    val CHANNELS: IntRange = RadioImage.channelOffset(0) until RadioImage.channelOffset(RadioImage.CHANNEL_COUNT)
+    val CHANNELS: IntRange = Uv5rImage.channelOffset(0) until Uv5rImage.channelOffset(Uv5rImage.CHANNEL_COUNT)
 
     /** Image offsets of the 128 name records (radio 0x1000..0x1800). */
-    val NAMES: IntRange = RadioImage.nameOffset(0) until RadioImage.nameOffset(RadioImage.CHANNEL_COUNT)
+    val NAMES: IntRange = Uv5rImage.nameOffset(0) until Uv5rImage.nameOffset(Uv5rImage.CHANNEL_COUNT)
 
     val WRITABLE: List<IntRange> = listOf(CHANNELS, NAMES)
 
@@ -25,7 +25,7 @@ object ImageRegions {
         WRITABLE.any { imageOffset in it && imageOffset + BLOCK - 1 in it } && (imageOffset - 8) % BLOCK == 0
 
     /** Image offsets of 16 byte blocks in the writable regions where [before] and [after] differ. */
-    fun changedBlocks(before: RadioImage, after: RadioImage): List<Int> {
+    fun changedBlocks(before: Uv5rImage, after: Uv5rImage): List<Int> {
         val a = before.bytes()
         val b = after.bytes()
         return WRITABLE.flatMap { region ->
@@ -39,12 +39,12 @@ object ImageRegions {
      * Channel numbers (0 based) whose memory or name record differs between [expected] and
      * [actual]. Used to verify a write by reading the radio back.
      */
-    fun mismatchedChannels(expected: RadioImage, actual: RadioImage): List<Int> {
+    fun mismatchedChannels(expected: Uv5rImage, actual: Uv5rImage): List<Int> {
         val e = expected.bytes()
         val a = actual.bytes()
-        return (0 until RadioImage.CHANNEL_COUNT).filter { i ->
-            val ro = RadioImage.channelOffset(i)
-            val no = RadioImage.nameOffset(i)
+        return (0 until Uv5rImage.CHANNEL_COUNT).filter { i ->
+            val ro = Uv5rImage.channelOffset(i)
+            val no = Uv5rImage.nameOffset(i)
             !e.copyOfRange(ro, ro + BLOCK).contentEquals(a.copyOfRange(ro, ro + BLOCK)) ||
                 !e.copyOfRange(no, no + BLOCK).contentEquals(a.copyOfRange(no, no + BLOCK))
         }
@@ -54,7 +54,7 @@ object ImageRegions {
      * True when [other] differs from [base] only inside the writable regions. Used to prove an
      * image about to be written carries the radio's own settings and calibration.
      */
-    fun differsOnlyInWritableRegions(base: RadioImage, other: RadioImage): Boolean {
+    fun differsOnlyInWritableRegions(base: Uv5rImage, other: Uv5rImage): Boolean {
         if (base.size != other.size) return false
         val a = base.bytes()
         val b = other.bytes()

@@ -27,6 +27,9 @@ import com.vyntric.offset.domain.RepeaterProvider
 import com.vyntric.offset.domain.RepeaterSource
 import com.vyntric.offset.domain.WriteRadio
 import com.vyntric.offset.protocol.ChirpImg
+import com.vyntric.offset.protocol.RadioDriver
+import com.vyntric.offset.protocol.RadioDrivers
+import com.vyntric.offset.protocol.Uv5rDriver
 import com.vyntric.offset.protocol.Sleeper
 import com.vyntric.offset.transport.SimulatedRadioLink
 import com.vyntric.offset.transport.SwitchingRadioLink
@@ -53,14 +56,18 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
     val location = LocationSource(app)
     val counties = CountyDirectory { app.assets.open("places/counties.tsv") }
 
-    private val db = database ?: Room.databaseBuilder(app, OffsetDatabase::class.java, "offset.db").build()
+    private val db = database ?: Room.databaseBuilder(app, OffsetDatabase::class.java, "offset.db")
+        .addMigrations(*OffsetDatabase.MIGRATIONS).build()
     val images = ImageRepository(db.images(), clock)
     val staging = StagingRepository(db.staging(), clock)
 
     val usbLink = UsbRadioLink(app)
     val simulatedLink = SimulatedRadioLink(
-        stateFile = File(app.noBackupFilesDir, "simulated-radio.img"),
-        factoryImage = { ChirpImg.decode(app.assets.open("simulated/uv5r-factory.img").use { it.readBytes() }).image },
+        stateFile = { d -> File(app.noBackupFilesDir, if (d == Uv5rDriver) "simulated-radio.img" else "simulated-${d.id}.img") },
+        factoryImage = { d ->
+            if (d == Uv5rDriver) ChirpImg.decode(app.assets.open("simulated/uv5r-factory.img").use { it.readBytes() }).image
+            else d.sampleImage()
+        },
     )
 
     /** Simulation is a debug-only feature; release builds always use USB. */
@@ -77,7 +84,15 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
 
     val radioSession = RadioSession()
     private val sleeper = Sleeper.REAL
-    val readRadio = ReadRadio(radioLink, images, radioSession, clock, sleeper)
+    /** The radio type selected for reading; writes use the type of the radio that was read. */
+    fun selectedDriver(): RadioDriver = RadioDrivers.byId(settings.settings.value.radioType) ?: RadioDrivers.default
+
+    val readRadio = ReadRadio(radioLink, images, radioSession, clock, sleeper, ::selectedDriver)
+
+    /** The radio staging is built for: the one last read, else the selected type. */
+    fun stagingTarget(): com.vyntric.offset.domain.StagingTarget =
+        radioSession.last.value?.image?.let { com.vyntric.offset.domain.StagingTarget.of(it) }
+            ?: com.vyntric.offset.domain.StagingTarget.of(selectedDriver())
     val writeRadio = WriteRadio(radioLink, images, radioSession, clock, sleeper)
     val operations = com.vyntric.offset.domain.RadioOperations(appScope, readRadio, writeRadio)
     private val keys = AtomicLong(clock.millis())

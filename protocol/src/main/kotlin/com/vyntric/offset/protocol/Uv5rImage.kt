@@ -6,7 +6,7 @@
 package com.vyntric.offset.protocol
 
 /**
- * An immutable UV-5R clone image in CHIRP's layout:
+ * An immutable UV-5R family clone image in CHIRP's layout:
  * ```
  * 0x0000..0x0008  ident returned by the radio handshake (8 bytes)
  * 0x0008..0x1808  radio memory 0x0000..0x1800 (channels, settings, names)
@@ -14,19 +14,22 @@ package com.vyntric.offset.protocol
  * ```
  * Images without the aux block (0x1808 bytes) are accepted, as CHIRP accepts them.
  */
-class RadioImage private constructor(private val data: ByteArray) {
+class Uv5rImage private constructor(private val data: ByteArray) : RadioImage {
 
-    val size: Int get() = data.size
+    override val driver: RadioDriver get() = Uv5rDriver
+    override val size: Int get() = data.size
     val hasAux: Boolean get() = data.size == FULL_SIZE
 
-    /** A defensive copy of the raw bytes. */
-    fun bytes(): ByteArray = data.copyOf()
+    override fun bytes(): ByteArray = data.copyOf()
 
     val ident: ByteArray get() = data.copyOfRange(0, IDENT_SIZE)
     val identHex: String get() = ident.toHex()
 
+    /** The radio handshake ident. The ident names a model, not a unit. */
+    override val identity: String get() = identHex
+
     /** The 14 byte firmware string at image 0x1838 (radio 0x1EF0), trimmed. Null without aux. */
-    val firmwareVersion: String?
+    override val firmwareVersion: String?
         get() = if (!hasAux) null else data.copyOfRange(FIRMWARE_START, FIRMWARE_END)
             .map { b -> val c = b.toInt() and 0xFF; if (c in 0x20..0x7E) c.toChar() else ' ' }
             .joinToString("").trim().replace(Regex("\\s+"), " ")
@@ -39,6 +42,10 @@ class RadioImage private constructor(private val data: ByteArray) {
         }
 
     val model: RadioModel get() = detection.model
+
+    override val profile: RadioProfile get() = model
+
+    override val modelName: String get() = model.displayName
 
     /** True for UV-5R firmware older than BFB291, which CHIRP treats as a separate layout. */
     val isOriginalFirmware: Boolean
@@ -55,31 +62,54 @@ class RadioImage private constructor(private val data: ByteArray) {
 
     private val codec get() = ChannelCodec(model)
 
-    fun channel(index: Int): Channel? {
+    override fun channel(index: Int): Channel? {
         require(index in 0 until CHANNEL_COUNT) { "Channel index $index out of range" }
         return codec.decode(data, channelOffset(index), data, nameOffset(index))
     }
 
-    fun channels(): List<Channel?> = (0 until CHANNEL_COUNT).map { channel(it) }
-
-    val usedChannelCount: Int get() = (0 until CHANNEL_COUNT).count { !codec.isEmpty(data, channelOffset(it)) }
+    override val usedChannelCount: Int get() = (0 until CHANNEL_COUNT).count { !codec.isEmpty(data, channelOffset(it)) }
 
     /**
-     * Returns a copy with all 128 slots replaced by [channels] (null = empty slot). Only the
+     * Returns a copy with all 128 slots replaced by [slots] (null = empty slot). Only the
      * channel and name regions are touched. Unchanged channels keep their exact bytes.
      */
-    fun withChannels(channels: List<Channel?>): RadioImage {
-        require(channels.size <= CHANNEL_COUNT) { "At most $CHANNEL_COUNT channels, got ${channels.size}" }
+    override fun withChannels(slots: List<Channel?>): Uv5rImage {
+        require(slots.size <= CHANNEL_COUNT) { "At most $CHANNEL_COUNT channels, got ${slots.size}" }
+        require(slots.none { it?.digitalMode != null }) { "The UV-5R has no digital channels" }
         val out = data.copyOf()
-        for (i in 0 until CHANNEL_COUNT) writeSlot(out, i, channels.getOrNull(i))
-        return RadioImage(out)
+        for (i in 0 until CHANNEL_COUNT) writeSlot(out, i, slots.getOrNull(i))
+        return Uv5rImage(out)
     }
 
-    fun withChannel(index: Int, channel: Channel?): RadioImage {
+    fun withChannel(index: Int, channel: Channel?): Uv5rImage {
         val out = data.copyOf()
         writeSlot(out, index, channel)
-        return RadioImage(out)
+        return Uv5rImage(out)
     }
+
+    override fun withWritableRegionsOf(source: RadioImage): Uv5rImage {
+        require(source is Uv5rImage) { "Not a UV-5R image" }
+        val src = source.data
+        val dst = data.copyOf()
+        for (region in ImageRegions.WRITABLE) src.copyInto(dst, region.first, region.first, region.last + 1)
+        return Uv5rImage(dst)
+    }
+
+    override fun differsOnlyInWritableRegions(other: RadioImage): Boolean =
+        other is Uv5rImage && ImageRegions.differsOnlyInWritableRegions(this, other)
+
+    override fun mismatchedChannels(actual: RadioImage): List<Int> {
+        require(actual is Uv5rImage) { "Not a UV-5R image" }
+        return ImageRegions.mismatchedChannels(this, actual)
+    }
+
+    override val chirpMetadata: Map<String, String>
+        get() = linkedMapOf(
+            "rclass" to model.chirpRclass,
+            "vendor" to model.vendor,
+            "model" to model.chirpModel,
+            "variant" to "",
+        )
 
     private fun writeSlot(out: ByteArray, index: Int, channel: Channel?) {
         val c = codec
@@ -102,9 +132,9 @@ class RadioImage private constructor(private val data: ByteArray) {
         name.copyInto(out, no)
     }
 
-    override fun equals(other: Any?): Boolean = other is RadioImage && data.contentEquals(other.data)
+    override fun equals(other: Any?): Boolean = other is Uv5rImage && data.contentEquals(other.data)
     override fun hashCode(): Int = data.contentHashCode()
-    override fun toString(): String = "RadioImage(${model.displayName}, fw=$firmwareVersion, ident=$identHex)"
+    override fun toString(): String = "Uv5rImage(${model.displayName}, fw=$firmwareVersion, ident=$identHex)"
 
     companion object {
         const val IDENT_SIZE = 8
@@ -125,18 +155,18 @@ class RadioImage private constructor(private val data: ByteArray) {
         fun nameOffset(index: Int): Int = 0x1008 + index * RECORD
 
         /** Wraps raw bytes after validating the size. */
-        fun of(bytes: ByteArray): RadioImage {
+        fun of(bytes: ByteArray): Uv5rImage {
             if (bytes.size != FULL_SIZE && bytes.size != NO_AUX_SIZE) {
                 throw InvalidImageException(
                     "Image is ${bytes.size} bytes; a UV-5R image is $FULL_SIZE bytes (or $NO_AUX_SIZE without aux)"
                 )
             }
-            return RadioImage(bytes.copyOf())
+            return Uv5rImage(bytes.copyOf())
         }
 
-        fun assemble(ident: ByteArray, main: ByteArray, aux: ByteArray): RadioImage {
+        fun assemble(ident: ByteArray, main: ByteArray, aux: ByteArray): Uv5rImage {
             require(ident.size == IDENT_SIZE && main.size == MAIN_SIZE && aux.size == AUX_SIZE)
-            return RadioImage(ident + main + aux)
+            return Uv5rImage(ident + main + aux)
         }
 
         /** Maps an image offset in the main block to the radio address. */
@@ -147,7 +177,5 @@ class RadioImage private constructor(private val data: ByteArray) {
         }
     }
 }
-
-class InvalidImageException(message: String) : Exception(message)
 
 internal fun ByteArray.toHex(): String = joinToString("") { "%02X".format(it.toInt() and 0xFF) }

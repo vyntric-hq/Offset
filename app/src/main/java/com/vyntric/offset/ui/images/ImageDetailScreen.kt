@@ -33,7 +33,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vyntric.offset.AppContainer
 import com.vyntric.offset.domain.ImageKind
 import com.vyntric.offset.protocol.Channel
-import com.vyntric.offset.protocol.RadioImage
+import com.vyntric.offset.protocol.Uv5rImage
 import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.ui.channel.ChannelEditorSheet
 import com.vyntric.offset.ui.components.BarAction
@@ -126,10 +126,10 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
 
         item(key = "info") {
             InsetSection(header = "Radio") {
-                cell { DetailRow("Model", image.model.displayName + if (!image.detection.recognized) " (assumed)" else "") }
+                cell { DetailRow("Model", image.modelName + if ((image as? Uv5rImage)?.detection?.recognized == false) " (assumed)" else "") }
                 cell { DetailRow("Firmware", image.firmwareVersion ?: "Not in image") }
-                cell { DetailRow("Ident", image.identHex) }
-                cell { DetailRow("Channels", "${image.usedChannelCount} of ${RadioImage.CHANNEL_COUNT}") }
+                cell { DetailRow("Ident", image.identity) }
+                cell { DetailRow("Channels", "${image.usedChannelCount} of ${image.capacity}") }
                 cell { DetailRow("Kind", when (stored.kind) { ImageKind.USER -> "Saved"; ImageKind.FACTORY -> "Factory read"; ImageKind.BACKUP -> "Backup" }) }
                 cell { DetailRow("Updated", Fmt.dateTime(stored.updatedAtMillis)) }
                 cell { CellRow("Notes", subtitle = stored.notes.ifBlank { "Add notes" }, chevron = true, onClick = { notes = true }) }
@@ -156,7 +156,10 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
             item(key = "slot-$index") {
                 GroupedCell(CellPosition.of(pos, used.size), Modifier.animateItem(), separatorInset = 56.dp) {
                     SwipeActionRow("Clear", onAction = { vm.setChannel(index, null) }) {
-                        SlotRow(index, ch!!) { editing = Editing.Slot(index, ch) }
+                        SlotRow(index, ch!!) {
+                            if (ch.digitalMode == null) editing = Editing.Slot(index, ch)
+                            else vm.say("${ch.digitalMode} channels are kept exactly as the radio has them. Offset edits analog channels only.")
+                        }
                     }
                 }
             }
@@ -170,7 +173,7 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
         ChannelEditorSheet(
             title = "Channel ${e.index + 1}",
             initial = e.channel,
-            model = stored?.image?.model ?: com.vyntric.offset.protocol.RadioModel.UV5R,
+            model = stored?.image?.profile ?: com.vyntric.offset.protocol.RadioModel.UV5R,
             onSave = { vm.setChannel(e.index, it); editing = null },
             onDismiss = { editing = null },
             onDelete = if (e.channel != null) ({ vm.setChannel(e.index, null); editing = null }) else null,
@@ -194,15 +197,15 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
     if (confirmRestore && stored != null) {
         OffsetSheet(onDismiss = { confirmRestore = false }, title = "Restore to radio", leadingAction = { BarAction("Cancel") { confirmRestore = false } }) {
             InsetSection(header = "Radio") {
-                cell { DetailRow("Model", stored.image.model.displayName) }
+                cell { DetailRow("Model", stored.image.modelName) }
                 cell { DetailRow("Ident", s.connectedIdent ?: "Unknown") }
             }
             InsetSection(header = "Image") {
                 cell { DetailRow("Name", stored.name) }
-                cell { DetailRow("Channels", "${stored.image.usedChannelCount} of ${RadioImage.CHANNEL_COUNT}") }
+                cell { DetailRow("Channels", "${stored.image.usedChannelCount} of ${stored.image.capacity}") }
             }
             SectionFooter(
-                "Offset reads the radio, saves a backup, writes only this image's channel and name memory, then verifies. " +
+                "Offset reads the radio, saves a backup, writes only this image's channel memory and the lists that refer to channels, then verifies. " +
                     "The radio's own settings and calibration stay as they are.",
             )
             Column(Modifier.padding(Dimens.gutter)) {

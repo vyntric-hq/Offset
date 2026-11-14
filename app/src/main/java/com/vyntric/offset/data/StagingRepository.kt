@@ -49,11 +49,11 @@ class StagingRepository(private val dao: StagingDao, private val clock: Clock) {
     private fun decode(text: String?): List<StagedChannel> {
         if (text.isNullOrEmpty()) return emptyList()
         val list = json.decodeFromString<List<StagedDto>>(text).map { it.toDomain() }
-        // Lists saved before slots existed (slot -1) are numbered in their saved order.
+        // Lists saved before slots existed (slot -1, UV-5R only) are numbered in their saved order.
         val used = list.map { it.slot }.filter { it >= 0 }.toMutableSet()
         return list.map { s ->
             if (s.slot >= 0) s else {
-                val free = (0 until com.vyntric.offset.protocol.RadioImage.CHANNEL_COUNT).first { it !in used }
+                val free = generateSequence(0) { it + 1 }.first { it !in used }
                 used += free
                 s.copy(slot = free)
             }
@@ -78,12 +78,14 @@ class StagingRepository(private val dao: StagingDao, private val clock: Clock) {
         val pttIdCode: Int,
         val name: String,
         val slot: Int = -1,
+        val digital: String? = null,
     )
 
     private fun StagedChannel.toDto() = StagedDto(
         key, origin.name, note, channel.rxFreqHz, channel.duplex.name, channel.offsetHz,
         squelchToString(channel.txSquelch), squelchToString(channel.rxSquelch), channel.power.name,
         channel.wide, channel.scanAdd, channel.busyLockout, channel.pttId.name, channel.pttIdCode, channel.name, slot,
+        channel.digitalMode,
     )
 
     private fun StagedDto.toDomain() = StagedChannel(
@@ -92,6 +94,7 @@ class StagingRepository(private val dao: StagingDao, private val clock: Clock) {
             rxFreqHz = rx, duplex = Duplex.valueOf(duplex), offsetHz = offset,
             txSquelch = squelchFromString(tx), rxSquelch = squelchFromString(rxTone), power = Power.valueOf(power),
             wide = wide, scanAdd = scan, busyLockout = bcl, pttId = PttId.valueOf(pttId), pttIdCode = pttIdCode, name = name,
+            digitalMode = digital,
         ),
         origin = runCatching { ChannelOrigin.valueOf(origin) }.getOrDefault(ChannelOrigin.MANUAL),
         note = note,

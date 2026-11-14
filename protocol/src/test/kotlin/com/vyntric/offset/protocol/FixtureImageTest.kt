@@ -52,7 +52,7 @@ class FixtureImageTest {
         for ((name, load) in Fixtures.all) {
             val img = load()
             val edited = img.withChannels(
-                List(RadioImage.CHANNEL_COUNT) { i -> if (i % 3 == 0) Channel(146_000_000L + i * 15_000L, name = "CH$i") else null }
+                List(Uv5rImage.CHANNEL_COUNT) { i -> if (i % 3 == 0) Channel(146_000_000L + i * 15_000L, name = "CH$i") else null }
             )
             assertTrue("fixture $name", ImageRegions.differsOnlyInWritableRegions(img, edited))
             assertEquals(43, edited.usedChannelCount)
@@ -73,6 +73,6 @@ class FixtureImageTest {
 
     @Test(expected = InvalidImageException::class)
     fun `rejects images of the wrong size`() {
-        RadioImage.of(ByteArray(1000))
+        Uv5rImage.of(ByteArray(1000))
     }
 }

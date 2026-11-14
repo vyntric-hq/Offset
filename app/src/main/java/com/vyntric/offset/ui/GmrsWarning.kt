@@ -16,8 +16,8 @@ import com.vyntric.offset.ui.theme.Dimens
 
 const val GMRS_WARNING =
     "GMRS channels are programmed with normal transmit settings. In the US, transmitting on GMRS requires an " +
-        "FCC GMRS license, and GMRS transmitters must be certified under Part 95. Baofeng UV-5R family radios are " +
-        "certified for amateur use (Part 90 in some models), not Part 95 GMRS. FRS channels 8 to 14 are limited to " +
+        "FCC GMRS license, and GMRS transmitters must be certified under Part 95. The radios Offset programs are " +
+        "sold for amateur use (Part 90 in some models), not certified under Part 95 for GMRS. FRS channels 8 to 14 are limited to " +
         "0.5 W. You are responsible for operating legally. Receiving is always allowed."
 
 /** Shown once, the first time GMRS channels are added. */

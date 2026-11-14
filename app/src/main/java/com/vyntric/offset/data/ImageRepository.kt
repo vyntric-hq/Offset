@@ -10,6 +10,8 @@ import com.vyntric.offset.data.db.ImageSummaryRow
 import com.vyntric.offset.domain.ImageKind
 import com.vyntric.offset.domain.ImageLibrary
 import com.vyntric.offset.domain.StoredImage
+import com.vyntric.offset.protocol.RadioDriver
+import com.vyntric.offset.protocol.RadioDrivers
 import com.vyntric.offset.protocol.RadioImage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -19,6 +21,8 @@ data class ImageSummary(
     val id: Long,
     val name: String,
     val kind: ImageKind,
+    /** The radio family, or null for a family this version of Offset does not know. */
+    val driver: RadioDriver?,
     val identHex: String,
     val model: String,
     val firmware: String?,
@@ -37,7 +41,7 @@ class ImageRepository(private val dao: ImageDao, private val clock: Clock) : Ima
 
     override suspend fun load(id: Long): StoredImage? = dao.get(id)?.toStored()
 
-    override suspend fun hasFactoryImage(identHex: String): Boolean = dao.countFactory(identHex) > 0
+    override suspend fun hasFactoryImage(identity: String): Boolean = dao.countFactory(identity) > 0
 
     override suspend fun save(image: RadioImage, name: String, kind: ImageKind, notes: String): Long {
         val now = clock.millis()
@@ -45,8 +49,9 @@ class ImageRepository(private val dao: ImageDao, private val clock: Clock) : Ima
             ImageEntity(
                 name = name.trim().ifEmpty { "Untitled image" },
                 kind = kind.name,
-                identHex = image.identHex,
-                model = image.model.displayName,
+                radio = image.driver.id,
+                identHex = image.identity,
+                model = image.modelName,
                 firmware = image.firmwareVersion,
                 channelCount = image.usedChannelCount,
                 notes = notes,
@@ -71,11 +76,11 @@ class ImageRepository(private val dao: ImageDao, private val clock: Clock) : Ima
     suspend fun delete(id: Long) = dao.delete(id)
 
     private fun ImageSummaryRow.toSummary() = ImageSummary(
-        id, name, kindOf(kind), identHex, model, firmware, channelCount, notes, createdAt, updatedAt,
+        id, name, kindOf(kind), RadioDrivers.byId(radio), identHex, model, firmware, channelCount, notes, createdAt, updatedAt,
     )
 
     private fun ImageEntity.toStored() =
-        StoredImage(id, name, kindOf(kind), notes, createdAt, updatedAt, RadioImage.of(bytes))
+        StoredImage(id, name, kindOf(kind), notes, createdAt, updatedAt, RadioDrivers.image(radio, bytes))
 
     private fun kindOf(s: String) = runCatching { ImageKind.valueOf(s) }.getOrDefault(ImageKind.USER)
 

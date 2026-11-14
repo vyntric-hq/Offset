@@ -13,11 +13,14 @@ import com.vyntric.offset.domain.RadioOperations
 import com.vyntric.offset.domain.RadioSession
 import com.vyntric.offset.domain.SimplexPresets
 import com.vyntric.offset.domain.StagedChannel
+import com.vyntric.offset.domain.StagingTarget
 import com.vyntric.offset.domain.toSlots
 import com.vyntric.offset.domain.WriteRadio
 import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.ChannelValidator
-import com.vyntric.offset.protocol.RadioModel
+import com.vyntric.offset.protocol.RadioDriver
+import com.vyntric.offset.protocol.RadioDrivers
+import com.vyntric.offset.protocol.RadioProfile
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -35,8 +38,13 @@ data class RadioUiState(
     val operation: RadioOperations.State = RadioOperations.State.Idle,
     val message: String? = null,
     val error: String? = null,
+    /** The radio type selected for reading. */
+    val radioType: RadioDriver = RadioDrivers.default,
 ) {
-    val model: RadioModel get() = snapshot?.image?.model ?: RadioModel.UV5R
+    /** The radio staging is built for: the one read, else the selected type. */
+    val driver: RadioDriver get() = snapshot?.image?.driver ?: radioType
+    val target: StagingTarget get() = snapshot?.image?.let { StagingTarget.of(it) } ?: StagingTarget.of(radioType)
+    val model: RadioProfile get() = target.profile
     val busy: Boolean get() = operation is RadioOperations.State.Running
     val cableUsable: Boolean get() = cable is CableState.Ready || cable is CableState.Simulated
     val canWrite: Boolean get() = cableUsable && snapshot != null && staging.isNotEmpty() && problems.isEmpty() && !busy
@@ -46,10 +54,19 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
     private val transient = MutableStateFlow(Pair<String?, String?>(null, null))
 
     val state: StateFlow<RadioUiState> = combine(
-        c.radioLink.cable, c.radioSession.last, c.staging.observe(), c.operations.state, transient,
-    ) { cable, snap, staging, op, (message, error) ->
-        RadioUiState(cable, snap, staging, c.buildStaging.problems(staging, snap?.image?.model ?: RadioModel.UV5R), op, message, error)
+        combine(c.radioLink.cable, c.radioSession.last, c.settings.settings) { cable, snap, s -> Triple(cable, snap, s) },
+        c.staging.observe(), c.operations.state, transient,
+    ) { (cable, snap, settings), staging, op, (message, error) ->
+        val base = RadioUiState(cable, snap, staging, emptyMap(), op, message, error, RadioDrivers.byId(settings.radioType) ?: RadioDrivers.default)
+        base.copy(problems = c.buildStaging.problems(staging, base.target, snap?.image))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RadioUiState())
+
+    /** Selects the radio type to read. A radio read as another type is forgotten. */
+    fun selectRadioType(driver: RadioDriver) {
+        if (c.settings.settings.value.radioType == driver.id) return
+        c.settings.update { it.copy(radioType = driver.id) }
+        if (c.radioSession.last.value?.image?.driver != driver) c.radioSession.clear()
+    }
 
     init {
         // Read results arrive here even if the read finished while the screen was away.
@@ -63,7 +80,7 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
                         }
                         val loaded = if (wasEmpty) " Its ${r.read.image.usedChannelCount} channels are now in staging." else ""
                         val factory = r.read.factoryImageName?.let { " First read of this radio: saved \"$it\" to Images." } ?: ""
-                        transient.value = "Read ${r.read.image.model.displayName}.$loaded$factory".trim() to null
+                        transient.value = "Read ${r.read.image.modelName}.$loaded$factory".trim() to null
                         clearMessageLater()
                     }
                     is RadioOperations.Result.ReadFailed -> {
@@ -92,11 +109,18 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
 
     fun clearStaging() = viewModelScope.launch { c.staging.put(emptyList()) }
 
-    fun compact() = viewModelScope.launch { c.staging.update { c.buildStaging.compact(it) to Unit } }
+    /** Digital channels are not editable; say why instead of opening the editor. */
+    fun explainDigital(channel: Channel) {
+        transient.value = "${channel.digitalMode} channels are kept exactly as the radio has them. Offset programs analog channels only." to null
+        clearMessageLater()
+    }
+
+    fun compact() = viewModelScope.launch { c.staging.update { c.buildStaging.compact(it, state.value.target) to Unit } }
 
     fun move(fromKey: Long, toKey: Long) = viewModelScope.launch {
+        val target = state.value.target
         c.staging.update { list ->
-            c.buildStaging.move(list, list.indexOfFirst { it.key == fromKey }, list.indexOfFirst { it.key == toKey }) to Unit
+            c.buildStaging.move(list, list.indexOfFirst { it.key == fromKey }, list.indexOfFirst { it.key == toKey }, target) to Unit
         }
     }
 
@@ -105,9 +129,10 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
     fun replace(key: Long, channel: Channel) = viewModelScope.launch { c.staging.update { c.buildStaging.replace(it, key, channel) to Unit } }
 
     fun addManual(channel: Channel) = viewModelScope.launch {
-        val r = c.staging.update { list -> c.buildStaging.add(list, listOf(channel), ChannelOrigin.MANUAL).let { it.staging to it } }
+        val target = state.value.target
+        val r = c.staging.update { list -> c.buildStaging.add(list, listOf(channel), ChannelOrigin.MANUAL, target).let { it.staging to it } }
         transient.value = when {
-            r.overflow > 0 -> null to "Staging is full (128 channels)."
+            r.overflow > 0 -> null to "Staging is full (${target.capacity} channels)."
             r.duplicates > 0 -> null to "That channel is already staged."
             else -> "Added ${channel.name.ifBlank { "channel" }}." to null
         }
@@ -123,7 +148,9 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
             return
         }
         viewModelScope.launch {
-            val r = c.staging.update { list -> c.buildStaging.add(list, preset.channels, ChannelOrigin.MANUAL).let { it.staging to it } }
+            val target = state.value.target
+            val channels = preset.channels.map { it.copy(name = target.profile.sanitizeName(it.name), power = target.profile.nearestPower(it.power)) }
+            val r = c.staging.update { list -> c.buildStaging.add(list, channels, ChannelOrigin.MANUAL, target).let { it.staging to it } }
             val parts = listOfNotNull(
                 "Added ${r.added} ${preset.title} channels.",
                 r.duplicates.takeIf { it > 0 }?.let { "$it already staged." },
@@ -149,9 +176,10 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
     fun write(imageName: String) {
         val s = state.value
         val request = WriteRadio.Request(
-            content = WriteRadio.Content.Channels(s.staging.toSlots()),
+            content = WriteRadio.Content.Channels(s.staging.toSlots(s.target.capacity)),
             resultName = imageName,
-            confirmedIdentHex = s.snapshot?.image?.identHex,
+            confirmedIdentity = s.snapshot?.image?.identity,
+            driver = s.driver,
         )
         if (!c.operations.write(request)) transient.value = null to "Another radio operation is running."
     }

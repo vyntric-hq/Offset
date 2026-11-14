@@ -22,9 +22,9 @@ data class StagedChannel(
     val slot: Int = 0,
 )
 
-/** The 128 radio slots a staging list writes, empty where nothing is staged. */
-fun List<StagedChannel>.toSlots(): List<Channel?> {
-    val slots = MutableList<Channel?>(com.vyntric.offset.protocol.RadioImage.CHANNEL_COUNT) { null }
+/** The [capacity] radio slots a staging list writes, empty where nothing is staged. */
+fun List<StagedChannel>.toSlots(capacity: Int): List<Channel?> {
+    val slots = MutableList<Channel?>(capacity) { null }
     for (s in this) if (s.slot in slots.indices) slots[s.slot] = s.channel
     return slots
 }

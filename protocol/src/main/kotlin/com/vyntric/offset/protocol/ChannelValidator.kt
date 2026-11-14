@@ -14,7 +14,7 @@ object ChannelValidator {
     /** Largest shift CHIRP still treats as a +/- offset; anything larger is a split. */
     const val MAX_OFFSET_HZ = 70_000_000L
 
-    fun validate(channel: Channel, model: RadioModel): List<Problem> {
+    fun validate(channel: Channel, model: RadioProfile): List<Problem> {
         val problems = ArrayList<Problem>()
         if (!model.inBand(channel.rxFreqHz)) {
             problems += Problem(Field.FREQUENCY, "Receive frequency must be within ${bands(model)}.")
@@ -35,8 +35,13 @@ object ChannelValidator {
         if (channel.name.length > model.nameLength) {
             problems += Problem(Field.NAME, "Names are at most ${model.nameLength} characters.")
         }
-        if (channel.name.uppercase().any { it !in ChannelCodec.NAME_CHARSET }) {
-            problems += Problem(Field.NAME, "Names may use A to Z, 0 to 9, space and !@#\$%^&*()+-=[]:\";'<>?,./")
+        val shown = if (model.uppercaseNames) channel.name.uppercase() else channel.name
+        if (shown.any { it !in model.nameCharset }) {
+            problems += Problem(
+                Field.NAME,
+                if (model.nameCharset == ChannelCodec.NAME_CHARSET) "Names may use A to Z, 0 to 9, space and !@#\$%^&*()+-=[]:\";'<>?,./"
+                else "Names may use letters, digits, space and ASCII punctuation.",
+            )
         }
         tone(channel.txSquelch)?.let { problems += Problem(Field.TX_TONE, it) }
         tone(channel.rxSquelch)?.let { problems += Problem(Field.RX_TONE, it) }
@@ -53,9 +58,9 @@ object ChannelValidator {
         is Squelch.Dcs -> if (Tones.isValidDcs(s.code)) null else "D${Tones.formatDcs(s.code)} is not a supported DCS code."
     }
 
-    private fun bands(model: RadioModel): String {
+    private fun bands(model: RadioProfile): String {
         fun mhz(v: Long) = (v / 1_000_000.0).let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() }
-        return "${mhz(model.vhfHz.first)} to ${mhz(model.vhfHz.last + 1)} MHz or " +
-            "${mhz(model.uhfHz.first)} to ${mhz(model.uhfHz.last + 1)} MHz"
+        return model.bands.joinToString(", ", limit = 6) { "${mhz(it.first)} to ${mhz(it.last + 1)} MHz" }
+            .let { if (model.bands.size == 2) it.replace(", ", " or ") else it }
     }
 }

@@ -5,6 +5,7 @@ import com.vyntric.offset.MemoryLibrary
 import com.vyntric.offset.SimLink
 import com.vyntric.offset.fixedClock
 import com.vyntric.offset.protocol.Channel
+import com.vyntric.offset.protocol.Uv5rDriver
 import com.vyntric.offset.protocol.SimulatedRadio
 import com.vyntric.offset.protocol.Sleeper
 import kotlinx.coroutines.flow.first
@@ -26,7 +27,7 @@ class RadioOperationsTest {
     private val session = RadioSession()
     private val ops = RadioOperations(
         scope,
-        ReadRadio(link, library, session, fixedClock, Sleeper.NONE),
+        ReadRadio(link, library, session, fixedClock, Sleeper.NONE) { Uv5rDriver },
         WriteRadio(link, library, session, fixedClock, Sleeper.NONE),
     )
 
@@ -45,7 +46,7 @@ class RadioOperationsTest {
 
     @Test fun `a write always produces an outcome`() = scope.runTest {
         val image = AppFixtures.factoryImage()
-        assertTrue(ops.write(WriteRadio.Request(WriteRadio.Content.Channels(listOf(Channel(146_520_000))), "x", image.identHex)))
+        assertTrue(ops.write(WriteRadio.Request(WriteRadio.Content.Channels(listOf(Channel(146_520_000))), "x", image.identity, Uv5rDriver)))
         advanceUntilIdle()
         val done = ops.result.value as RadioOperations.Result.WriteDone
         assertTrue(done.outcome is WriteRadio.Outcome.Verified)
