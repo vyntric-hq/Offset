@@ -1,5 +1,5 @@
 /*
- * Offset, a UV-5R programming client.
+ * Offset, an Android radio programming client.
  * Copyright (C) 2026 Offset contributors. Licensed under GPL-3.0-or-later.
  * Ported from CHIRP (chirp/drivers/baofeng_dm32uv.py get_memory, set_memory, TONE_MODEL;
  * chirp/kenwood_tone.py), GPL.

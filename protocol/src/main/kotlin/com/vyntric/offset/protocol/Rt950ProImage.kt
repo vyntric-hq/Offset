@@ -1,5 +1,5 @@
 /*
- * Offset, a UV-5R programming client.
+ * Offset, an Android radio programming client.
  * Copyright (C) 2026 Offset contributors. Licensed under GPL-3.0-or-later.
  * Image layout from NathanBarguss/Chirp_Radtel-RT-950-Pro (rt950pro/transport.py DEFAULT_SEGMENTS,
  * rt950pro/image.py), MIT, Copyright (c) 2025 Nathan G. Barguss, 2E0NBS.

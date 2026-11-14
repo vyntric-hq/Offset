@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Offset, a UV-5R programming client.
+# Offset, an Android radio programming client.
 # Copyright (C) 2026 Offset contributors. Licensed under GPL-3.0-or-later.
 """
 Refresh the repeater snapshot bundled with the app, from Hearham's public API.
