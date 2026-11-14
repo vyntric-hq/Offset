@@ -27,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -36,6 +37,7 @@ import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.Uv5rImage
 import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.ui.channel.ChannelEditorSheet
+import com.vyntric.offset.ui.components.rememberChannelNumberWidth
 import com.vyntric.offset.ui.components.BarAction
 import com.vyntric.offset.ui.components.ButtonRow
 import com.vyntric.offset.ui.components.CellPosition
@@ -154,9 +156,10 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
         }
         used.forEachIndexed { pos, (index, ch) ->
             item(key = "slot-$index") {
-                GroupedCell(CellPosition.of(pos, used.size), Modifier.animateItem(), separatorInset = 56.dp) {
+                val numberColumn = rememberChannelNumberWidth(image.capacity, minWidth = 56.dp)
+                GroupedCell(CellPosition.of(pos, used.size), Modifier.animateItem(), separatorInset = numberColumn) {
                     SwipeActionRow("Clear", onAction = { vm.setChannel(index, null) }) {
-                        SlotRow(index, ch!!) {
+                        SlotRow(index, ch!!, numberColumn) {
                             if (ch.digitalMode == null) editing = Editing.Slot(index, ch)
                             else vm.say("${ch.digitalMode} channels are kept exactly as the radio has them. Offset edits analog channels only.")
                         }
@@ -216,10 +219,17 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
 }
 
 @Composable
-private fun SlotRow(index: Int, ch: Channel, onClick: () -> Unit) {
+private fun SlotRow(index: Int, ch: Channel, numberColumn: Dp, onClick: () -> Unit) {
     val colors = OffsetTheme.colors
     Row(Modifier.fillMaxWidth().heightIn(min = 58.dp).tappable("Edit channel ${index + 1}", onClick), verticalAlignment = Alignment.CenterVertically) {
-        Text("${index + 1}", style = OffsetTheme.type.footnote, color = colors.secondaryLabel, modifier = Modifier.width(56.dp).padding(start = Dimens.gutter))
+        Text(
+            "${index + 1}",
+            style = OffsetTheme.type.footnote,
+            color = colors.secondaryLabel,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.width(numberColumn).padding(start = Dimens.gutter),
+        )
         Column(Modifier.weight(1f).padding(vertical = 10.dp, horizontal = 0.dp).padding(end = Dimens.gutter)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(Fmt.mhz(ch.rxFreqHz), style = OffsetTheme.type.mono, color = colors.label)

@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -148,7 +150,14 @@ private fun TabBar(current: Tab, modifier: Modifier = Modifier, onSelect: (Tab) 
                     verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                 ) {
                     Icon(tab.icon, contentDescription = null, tint = tint, modifier = Modifier.size(26.dp))
-                    Text(tab.label, style = OffsetTheme.type.caption, color = tint)
+                    // At large font sizes a label shrinks to fit its tab instead of being cut off.
+                    Text(
+                        tab.label,
+                        style = OffsetTheme.type.caption,
+                        color = tint,
+                        maxLines = 1,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = OffsetTheme.type.caption.fontSize),
+                    )
                 }
             }
         }

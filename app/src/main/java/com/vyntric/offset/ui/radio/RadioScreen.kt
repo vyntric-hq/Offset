@@ -42,6 +42,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vyntric.offset.AppContainer
@@ -57,6 +58,7 @@ import com.vyntric.offset.protocol.RadioDrivers
 import com.vyntric.offset.protocol.Uv5rImage
 import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.ui.channel.ChannelEditorSheet
+import com.vyntric.offset.ui.components.rememberChannelNumberWidth
 import com.vyntric.offset.ui.components.BarAction
 import com.vyntric.offset.ui.components.ButtonRow
 import com.vyntric.offset.ui.components.CellPosition
@@ -97,6 +99,9 @@ fun RadioScreen(container: AppContainer) {
     var presets by remember { mutableStateOf(false) }
     var pickingType by remember { mutableStateOf(false) }
     val capacity = state.target.capacity
+    // Staging can still hold numbers above this radio's capacity right after a radio type change.
+    val largestNumber = maxOf(capacity, state.staging.maxOfOrNull { it.slot + 1 } ?: 0)
+    val numberColumn = rememberChannelNumberWidth(largestNumber, minWidth = 52.dp)
     val pendingPreset by vm.pendingPreset.collectAsStateWithLifecycle()
 
     LargeTitleScreen(
@@ -165,11 +170,12 @@ fun RadioScreen(container: AppContainer) {
                     GroupedCell(
                         CellPosition.of(index, list.size),
                         Modifier.animateItem().let { if (fixedSlots) it else it.reorderable(reorder, staged.key) },
-                        separatorInset = 52.dp,
+                        separatorInset = numberColumn,
                     ) {
                         SwipeActionRow("Remove", onAction = { vm.remove(staged.key) }) {
                             StagedRow(
                                 index = index,
+                                numberColumn = numberColumn,
                                 staged = staged,
                                 problem = problems?.firstOrNull()?.message,
                                 handleModifier = if (fixedSlots) null else Modifier.dragHandle(reorder, staged.key) { haptics.select() },
@@ -315,6 +321,7 @@ private fun ProgressRow(running: RadioOperations.State.Running) {
 @Composable
 private fun StagedRow(
     index: Int,
+    numberColumn: Dp,
     staged: StagedChannel,
     problem: String?,
     handleModifier: Modifier?,
@@ -336,7 +343,9 @@ private fun StagedRow(
             "${staged.slot + 1}",
             style = OffsetTheme.type.footnote,
             color = colors.secondaryLabel,
-            modifier = Modifier.width(52.dp).padding(start = Dimens.gutter),
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.width(numberColumn).padding(start = Dimens.gutter),
         )
         Column(Modifier.weight(1f).tappable(onClick = onClick).padding(vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

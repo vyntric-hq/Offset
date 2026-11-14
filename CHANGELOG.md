@@ -16,6 +16,9 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 - Section headers with actions (Staging on the Radio tab) move the actions to their own line when
   both do not fit, instead of breaking the title.
 - Local builds without a release tag report version 0.3.0 instead of 0.1.0.
+- At large font sizes, the collapsed screen title no longer draws over the top bar buttons (it
+  shortens, and the bar grows taller), channel numbers no longer wrap and stay in line, and tab
+  labels shrink to fit instead of being cut off.
 
 ## [0.3.0] - 2026-11-14
 

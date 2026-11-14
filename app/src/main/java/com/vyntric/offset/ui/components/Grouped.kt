@@ -44,6 +44,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import com.vyntric.offset.ui.theme.Dimens
 import com.vyntric.offset.ui.theme.OffsetTheme
 
@@ -271,5 +274,20 @@ fun TextFieldRow(
             }
         }
         if (error != null) Text(error, style = type.footnote, color = colors.destructive, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+/**
+ * Width of a channel number column: [minWidth], or wider when the largest number shown
+ * ([capacity]) needs it at the current font size, so every row lines up and no number wraps.
+ */
+@Composable
+fun rememberChannelNumberWidth(capacity: Int, minWidth: Dp): Dp {
+    val style = OffsetTheme.type.footnote
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    return remember(capacity, minWidth, style, density) {
+        val digits = with(density) { measurer.measure(capacity.toString(), style).size.width.toDp() }
+        maxOf(minWidth, Dimens.gutter + digits + 8.dp)
     }
 }

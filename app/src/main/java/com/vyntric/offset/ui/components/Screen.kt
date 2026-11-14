@@ -31,6 +31,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBackIos
 import androidx.compose.material3.Icon
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -47,7 +48,14 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.Layout
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.vyntric.offset.ui.theme.Dimens
 import com.vyntric.offset.ui.theme.OffsetTheme
 
@@ -80,12 +88,15 @@ fun LargeTitleScreen(
     val progress by animateFloatAsState(if (collapsed) 1f else 0f, tween(180), label = "titleCollapse")
     val statusTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottomInset = LocalBottomInset.current
+    val density = LocalDensity.current
+    // The bar grows with the font size; the list starts below whatever height it measured.
+    var barHeight by remember { mutableStateOf(TopBarHeight) }
 
     Box(modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = statusTop + TopBarHeight, bottom = bottomInset + bottomBarHeight + 24.dp),
+            contentPadding = PaddingValues(top = statusTop + barHeight, bottom = bottomInset + bottomBarHeight + 24.dp),
         ) {
             item(key = "large-title") {
                 Text(
@@ -110,34 +121,40 @@ fun LargeTitleScreen(
                 .background(colors.chrome.copy(alpha = colors.chrome.alpha * progress))
                 .windowInsetsPadding(WindowInsets.statusBars),
         ) {
-            Box(Modifier.fillMaxWidth().height(TopBarHeight)) {
-                Text(
-                    title,
-                    style = type.headline,
-                    color = colors.label,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 96.dp).alpha(progress),
-                )
-                if (onBack != null) {
-                    Row(
-                        Modifier
-                            .align(Alignment.CenterStart)
-                            .clickable(role = Role.Button, onClickLabel = backLabel, onClick = onBack)
-                            .padding(start = 8.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
-                        Text(backLabel, style = type.body, color = colors.accent)
+            TopBarLayout(
+                modifier = Modifier.fillMaxWidth().onSizeChanged { barHeight = with(density) { it.height.toDp() } },
+                leading = {
+                    if (onBack != null) {
+                        Row(
+                            Modifier
+                                .clickable(role = Role.Button, onClickLabel = backLabel, onClick = onBack)
+                                .padding(start = 8.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBackIos, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                            Text(backLabel, style = type.body, color = colors.accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
-                }
-                Row(
-                    Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    content = actions,
-                )
-            }
+                },
+                title = {
+                    Text(
+                        title,
+                        style = type.headline,
+                        color = colors.label,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 8.dp).alpha(progress),
+                    )
+                },
+                actions = {
+                    Row(
+                        Modifier.padding(end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        content = actions,
+                    )
+                },
+            )
             Spacer(Modifier.fillMaxWidth().height(Dimens.hairline).background(colors.separator.copy(alpha = colors.separator.alpha * progress)))
         }
 
@@ -149,6 +166,51 @@ fun LargeTitleScreen(
     }
 }
 
+/**
+ * Lays out the top bar: [leading] at the start, [actions] at the end, and [title] centered on the
+ * bar when it fits between them, otherwise in the space left between them (ellipsized). The bar is
+ * at least [TopBarHeight] tall and grows when a large font makes any part taller, so the title
+ * never draws over the actions.
+ */
+@Composable
+private fun TopBarLayout(
+    leading: @Composable () -> Unit,
+    title: @Composable () -> Unit,
+    actions: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Layout(contents = listOf(leading, title, actions), modifier = modifier) { (lead, ttl, act), constraints ->
+        val width = constraints.maxWidth
+        // Controls before the title: the back button keeps up to half the bar, the actions get
+        // everything else they need, and the title takes what is left (it repeats the large title).
+        val leadCap = minOf(lead.maxOfOrNull { it.maxIntrinsicWidth(constraints.maxHeight) } ?: 0, width / 2)
+        val actP = act.map { it.measure(Constraints(maxWidth = (width - leadCap).coerceAtLeast(0))) }
+        val actW = actP.maxOfOrNull { it.width } ?: 0
+        val leadP = lead.map { it.measure(Constraints(maxWidth = (width - actW).coerceAtLeast(0))) }
+        val leadW = leadP.maxOfOrNull { it.width } ?: 0
+        val side = maxOf(leadW, actW)
+        val centered = width - 2 * side >= MinCenteredTitle.roundToPx()
+        val titleMax = (if (centered) width - 2 * side else width - leadW - actW).coerceAtLeast(0)
+        val titleP = ttl.map { it.measure(Constraints(maxWidth = titleMax)) }
+        val titleW = titleP.maxOfOrNull { it.width } ?: 0
+        val height = maxOf(
+            TopBarHeight.roundToPx(),
+            leadP.maxOfOrNull { it.height } ?: 0,
+            actP.maxOfOrNull { it.height } ?: 0,
+            titleP.maxOfOrNull { it.height } ?: 0,
+        )
+        layout(width, height) {
+            leadP.forEach { it.place(0, (height - it.height) / 2) }
+            val titleX = if (centered) (width - titleW) / 2 else leadW
+            titleP.forEach { it.place(titleX, (height - it.height) / 2) }
+            actP.forEach { it.place(width - it.width, (height - it.height) / 2) }
+        }
+    }
+}
+
+/** Below this width a centered title would be unreadable, so it moves into the free space. */
+private val MinCenteredTitle = 80.dp
+
 /** A text button for the top bar, in the accent colour. */
 @Composable
 fun BarAction(text: String, enabled: Boolean = true, onClick: () -> Unit) {
@@ -157,6 +219,9 @@ fun BarAction(text: String, enabled: Boolean = true, onClick: () -> Unit) {
         text,
         style = OffsetTheme.type.body,
         color = if (enabled) colors.accent else colors.tertiaryLabel,
+        maxLines = 1,
+        // On a narrow screen at a large font size the label shrinks rather than wrapping or clipping.
+        autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = OffsetTheme.type.body.fontSize),
         modifier = Modifier
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
