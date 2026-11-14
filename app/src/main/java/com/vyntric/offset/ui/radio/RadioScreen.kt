@@ -134,15 +134,15 @@ fun RadioScreen(container: AppContainer) {
             SectionHeader("Staging · ${state.staging.size} of $capacity") {
                 if (state.snapshot != null) {
                     Text("Load from radio", style = OffsetTheme.type.footnote, color = colors.accent,
-                        modifier = Modifier.padding(start = 12.dp).tappable { vm.loadFromRadio() })
+                        modifier = Modifier.tappable { vm.loadFromRadio() })
                 }
                 if (!fixedSlots && state.staging.withIndex().any { (i, s) -> s.slot != i }) {
                     Text("Close gaps", style = OffsetTheme.type.footnote, color = colors.accent,
-                        modifier = Modifier.padding(start = 16.dp).tappable("Renumber channels without gaps") { vm.compact() })
+                        modifier = Modifier.tappable("Renumber channels without gaps") { vm.compact() })
                 }
                 if (state.staging.isNotEmpty()) {
                     Text("Clear", style = OffsetTheme.type.footnote, color = colors.accent,
-                        modifier = Modifier.padding(start = 16.dp).tappable { vm.clearStaging() })
+                        modifier = Modifier.tappable { vm.clearStaging() })
                 }
             }
         }

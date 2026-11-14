@@ -22,9 +22,13 @@ It is a programming tool first. Repeater search exists to fill channels.
 
 ## Screenshots
 
-| Radio | Repeaters | Write | Images |
-| --- | --- | --- | --- |
-| _screenshot placeholder_ | _screenshot placeholder_ | _screenshot placeholder_ | _screenshot placeholder_ |
+| Staging on the Radio tab | Radio type | Repeaters near you | Repeater map |
+| :---: | :---: | :---: | :---: |
+| <img src="docs/screenshots/radio.png" width="200" alt="Radio tab: the connected UV-5R and 14 staged channels, with a Write button"> | <img src="docs/screenshots/radio-type.png" width="200" alt="Radio type picker listing the UV-5R family, DM-32UV and RT-950 Pro"> | <img src="docs/screenshots/repeaters.png" width="200" alt="Repeaters near Denver with distance and bearing, three selected"> | <img src="docs/screenshots/map.png" width="200" alt="Map of nearby repeaters with band coloured pins and clusters"> |
+| **Confirm the write** | **Write and verify** | **Written and verified** | **Image library** |
+| <img src="docs/screenshots/write-confirm.png" width="200" alt="Write confirmation naming the radio model, firmware, ident and channel count"> | <img src="docs/screenshots/write-verify.png" width="200" alt="Write in progress, reading the radio back to verify"> | <img src="docs/screenshots/write-done.png" width="200" alt="Write finished: written and verified, with a backup saved"> | <img src="docs/screenshots/images.png" width="200" alt="Images tab with the written image, the factory read and the automatic backup"> |
+
+Screenshots are from a debug build talking to the simulated radio (see Building).
 
 ## Supported radios
 
@@ -194,13 +198,14 @@ is. See [docs/PROTOCOL.md](docs/PROTOCOL.md).
 ./gradlew test assembleDebug          # JDK 17 and the Android SDK (platform 36, build tools 35.0.0)
 ```
 
-In debug builds, Settings, Debug, Simulated radio replaces the cable with an in-memory UV-5R
-that speaks the same protocol, so the whole app works without hardware. See
+In debug builds, Settings, Debug, Simulated radio replaces the cable with an in-memory radio of
+the selected type (UV-5R, DM-32UV or RT-950 Pro) that speaks the same clone protocol, so the whole
+app works without hardware. See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documentation
 
-- [docs/PROTOCOL.md](docs/PROTOCOL.md): the UV-5R clone protocol, memory map and record layout as implemented
+- [docs/PROTOCOL.md](docs/PROTOCOL.md): each radio family's clone protocol, memory map and record layout as implemented
 - [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md): each repeater source, its caching and attribution
 - [docs/REPRODUCIBLE.md](docs/REPRODUCIBLE.md): rebuilding and comparing releases, signing key setup
 - [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md): decisions made and what needs a radio to confirm

@@ -5,6 +5,18 @@ All notable changes to Offset are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The release workflow publishes the section whose
 heading matches the tag as the GitHub Release notes, so every tag needs a section here.
 
+## [Unreleased]
+
+### Added
+- README screenshots of the main screens, in `docs/screenshots`.
+
+### Fixed
+- The Refresh link under repeater results no longer wraps one letter per line next to a long
+  "Snapshot included with the app" date.
+- Section headers with actions (Staging on the Radio tab) move the actions to their own line when
+  both do not fit, instead of breaking the title.
+- Local builds without a release tag report version 0.3.0 instead of 0.1.0.
+
 ## [0.3.0] - 2026-11-14
 
 ### Added

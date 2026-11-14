@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -85,12 +86,18 @@ fun GroupedCell(position: CellPosition, modifier: Modifier = Modifier, separator
 
 @Composable
 fun SectionHeader(text: String, modifier: Modifier = Modifier, trailing: (@Composable RowScope.() -> Unit)? = null) {
-    Row(
+    // The trailing actions sit at the end of the title's line, or move to their own line together
+    // when both do not fit, so the title never breaks between words.
+    FlowRow(
         modifier.fillMaxWidth().padding(start = Dimens.gutter * 2, end = Dimens.gutter * 2, top = Dimens.sectionGap, bottom = 6.dp),
-        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        itemVerticalAlignment = Alignment.Bottom,
     ) {
-        Text(text.uppercase(), style = OffsetTheme.type.footnote, color = OffsetTheme.colors.secondaryLabel, modifier = Modifier.weight(1f))
-        trailing?.invoke(this)
+        Text(text.uppercase(), style = OffsetTheme.type.footnote, color = OffsetTheme.colors.secondaryLabel)
+        if (trailing != null) {
+            // A flow too, so at large font sizes the actions wrap among themselves instead of squeezing.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), itemVerticalAlignment = Alignment.Bottom, content = trailing)
+        }
     }
 }
 

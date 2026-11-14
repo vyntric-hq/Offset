@@ -435,7 +435,13 @@ private fun Attribution(s: RepeatersUiState, onRefresh: () -> Unit) {
                     s.summary?.bundled == true && s.fromCache -> "Snapshot included with the app, from"
                     else -> "Fetched"
                 }
-                Text("$label ${Fmt.dateTime(at)}", style = OffsetTheme.type.footnote, color = colors.secondaryLabel)
+                // The date wraps; Refresh keeps its width so it never breaks one letter per line.
+                Text(
+                    "$label ${Fmt.dateTime(at)}",
+                    style = OffsetTheme.type.footnote,
+                    color = colors.secondaryLabel,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
                 if (src != RepeaterSource.CSV && s.results != null) {
                     Text("  Refresh", style = OffsetTheme.type.footnote, color = colors.accent, modifier = Modifier.tappable("Refresh repeater data", onRefresh))
                 }
