@@ -89,6 +89,7 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
     private val repeaterDir = File(app.noBackupFilesDir, "repeaters")
     val hearham = HearhamProvider(
         Http.publicClient(), File(repeaterDir, "hearham.json"), "$userAgentBase)", clock, bundle = bundledHearham(app),
+        listings = bundledListings(app),
     )
     val repeaterBook = RepeaterBookProvider(
         Http.authenticatedClient(), File(repeaterDir, "repeaterbook"), { credentials.credentials.value }, userAgentBase, clock,
@@ -116,9 +117,21 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
         }
     }.getOrNull()
 
+    /** IRLP and OpenStreetMap listings in assets/repeaters, written by scripts/update_listings_bundle.py. */
+    private fun bundledListings(context: Context): (() -> java.io.InputStream)? {
+        val names = runCatching { context.assets.list("repeaters").orEmpty() }.getOrDefault(emptyArray())
+        return when {
+            "listings.json" in names -> { { context.assets.open("repeaters/listings.json") } }
+            "listings.json.gz" in names -> { { java.util.zip.GZIPInputStream(context.assets.open("repeaters/listings.json.gz")) } }
+            else -> null
+        }
+    }
+
     fun provider(source: RepeaterSource): RepeaterProvider = when (source) {
         RepeaterSource.HEARHAM -> hearham
         RepeaterSource.REPEATERBOOK -> repeaterBook
         RepeaterSource.CSV -> csvProvider
+        RepeaterSource.IRLP, RepeaterSource.OPENSTREETMAP ->
+            throw IllegalArgumentException("${source.displayName} is bundled with Hearham, not a provider")
     }
 }

@@ -250,6 +250,7 @@ private fun Summary(s: RepeatersUiState) {
         RepeaterSource.REPEATERBOOK -> " (states loaded so far)"
         RepeaterSource.CSV -> " (imported list)"
         RepeaterSource.HEARHAM -> if (sum.bundled) " included with the app" else ""
+        RepeaterSource.IRLP, RepeaterSource.OPENSTREETMAP -> ""
     }
     SectionFooter("$parts$where$updated", Modifier.padding(top = 10.dp))
 }
@@ -415,15 +416,17 @@ private fun Attribution(s: RepeatersUiState, onRefresh: () -> Unit) {
     val colors = OffsetTheme.colors
     Column(Modifier.fillMaxWidth().padding(horizontal = Dimens.gutter * 2, vertical = 20.dp)) {
         val src = s.provider
-        if (src.url.isNotEmpty()) {
-            Text(
-                src.attribution,
-                style = OffsetTheme.type.footnote,
-                color = colors.accent,
-                modifier = Modifier.tappable("Open ${src.displayName}") { uri.openUri(src.url) },
-            )
-        } else {
-            Text(src.attribution, style = OffsetTheme.type.footnote, color = colors.secondaryLabel)
+        Fmt.credits(src, s.results.orEmpty()).forEach { credit ->
+            if (credit.url.isNotEmpty()) {
+                Text(
+                    credit.attribution,
+                    style = OffsetTheme.type.footnote,
+                    color = colors.accent,
+                    modifier = Modifier.tappable("Open ${credit.displayName}") { uri.openUri(credit.url) },
+                )
+            } else {
+                Text(credit.attribution, style = OffsetTheme.type.footnote, color = colors.secondaryLabel)
+            }
         }
         val at = s.fetchedAt ?: s.cachedAt
         if (at != null) {
@@ -440,6 +443,17 @@ private fun Attribution(s: RepeatersUiState, onRefresh: () -> Unit) {
             }
         }
     }
+}
+
+/** Explains how well backed the listing is, then credits each directory. */
+private fun listingFooter(r: Repeater): String {
+    val v = r.verification
+    val confidence = when {
+        v.tonesDisagree -> "The directories disagree on the access tone. Offset uses ${r.source.displayName}'s; check on the air."
+        v.corroborated -> "Listed independently by ${v.independentSources} directories."
+        else -> "Listed by one directory. Check on the air before relying on it."
+    }
+    return (listOf(confidence) + v.sources.map { it.attribution }).joinToString("\n")
 }
 
 @Composable
@@ -469,10 +483,24 @@ private fun RepeaterDetailSheet(r: Repeater, s: RepeatersUiState, onDismiss: () 
                 cell { DetailRow("Distance", Fmt.distance(r.distanceKm, s.units) + (r.bearingDeg?.takeIf { r.distanceKm >= 0.1 }?.let { " ${Geo.compass(it)} (${it.toInt()}\u00B0)" } ?: "")) }
             }
         }
-        InsetSection(header = "Source", footer = r.source.attribution) {
-            cell { DetailRow("Source", r.source.displayName) }
+        val v = r.verification
+        InsetSection(header = "Listed by", footer = listingFooter(r)) {
+            r.listings.forEach { l ->
+                cell {
+                    CellRow(
+                        l.source.displayName,
+                        subtitle = listOfNotNull(
+                            "Copied from ${l.origin.displayName}".takeIf { l.origin != l.source },
+                            "Tone ${Fmt.squelch(l.uplinkTone)}".takeIf { v.tonesDisagree },
+                            l.lastReportMillis?.let { "Node last reported ${Fmt.dateTime(it)}" },
+                        ).joinToString(" · ").ifEmpty { null },
+                        chevron = l.detailUrl != null,
+                        onClickLabel = "View on ${l.source.displayName}",
+                        onClick = l.detailUrl?.let { url -> { uri.openUri(url) } },
+                    )
+                }
+            }
             r.lastUpdated?.let { cell { DetailRow("Last updated", it) } }
-            r.detailUrl?.let { url -> cell { ButtonRow("View on ${r.source.displayName}") { uri.openUri(url) } } }
         }
         r.notes?.takeIf { it.isNotBlank() }?.let { SectionFooter(it, Modifier.padding(top = 12.dp)) }
         Column(Modifier.padding(Dimens.gutter)) { PrimaryButton("Add to staging", onClick = onAdd) }

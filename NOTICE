@@ -81,6 +81,15 @@ Hearham (https://hearham.com): repeater data from Hearham.com. A snapshot of the
   response, trimmed to the records and fields Offset uses, ships in the app
   (app/src/main/assets/repeaters/hearham.json.gz, date in hearham.meta.json), and a small extract
   is a unit test fixture (app/src/test/resources/hearham-fixture.json).
+IRLP (https://status.irlp.net): "Node data from the IRLP status page". Node callsign, frequency,
+  offset, access tone, location and last report time for nodes that reported within 30 days, from
+  the public node status list, ship in app/src/main/assets/repeaters/listings.json.gz (date in
+  listings.meta.json).
+OpenStreetMap (https://www.openstreetmap.org/copyright): repeater listings © OpenStreetMap
+  contributors. The extract in app/src/main/assets/repeaters/listings.json.gz (records with
+  "src":"OSM") is a derived database of OpenStreetMap data and is made available under the Open
+  Database License 1.0 (https://opendatacommons.org/licenses/odbl/1-0/). Anyone may use, copy and
+  redistribute that extract under the ODbL; it is produced by scripts/update_listings_bundle.py.
 US Census Bureau Gazetteer, 2025 (https://www.census.gov/geographies/reference-files/time-series/geo/gazetteer-files.html):
   county names and internal points, public domain (US government work). File:
   app/src/main/assets/places/counties.tsv.

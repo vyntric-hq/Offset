@@ -7,6 +7,7 @@ package com.vyntric.offset.ui
 import com.vyntric.offset.data.Units
 import com.vyntric.offset.domain.Geo
 import com.vyntric.offset.domain.Repeater
+import com.vyntric.offset.domain.RepeaterSource
 import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.Duplex
 import com.vyntric.offset.protocol.Squelch
@@ -69,7 +70,24 @@ object Fmt {
         tones(r.uplinkTone, r.downlinkTone),
         listOfNotNull(r.city, r.state).joinToString(", ").ifBlank { null },
         if (r.mixedMode) "Mixed mode" else null,
+        verification(r),
     ).joinToString(" · ")
+
+    /** Short verification tag for a list row, or null for a repeater listed once by the chosen source. */
+    fun verification(r: Repeater): String? {
+        val v = r.verification
+        return when {
+            v.tonesDisagree -> "Sources disagree on tone"
+            v.corroborated -> "${v.independentSources} sources"
+            v.lastReportMillis != null -> "IRLP node"
+            !r.source.isProvider -> "Listed by ${r.source.displayName}"
+            else -> null
+        }
+    }
+
+    /** Credits for every directory behind [repeaters], primary [provider] first. */
+    fun credits(provider: RepeaterSource, repeaters: List<Repeater>): List<RepeaterSource> =
+        (listOf(provider) + repeaters.flatMap { it.verification.sources }).distinct()
 
     fun distance(km: Double, units: Units): String = when (units) {
         Units.MILES -> String.format(Locale.US, if (km / Geo.KM_PER_MILE < 10) "%.1f mi" else "%.0f mi", km / Geo.KM_PER_MILE)

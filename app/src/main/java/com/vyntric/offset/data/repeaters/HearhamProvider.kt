@@ -6,6 +6,7 @@
 package com.vyntric.offset.data.repeaters
 
 import com.vyntric.offset.domain.DataSummary
+import com.vyntric.offset.domain.DirectoryMerge
 import com.vyntric.offset.domain.Gmrs
 import com.vyntric.offset.domain.Repeater
 import com.vyntric.offset.domain.RepeaterException
@@ -37,6 +38,8 @@ import java.time.Clock
 /**
  * Hearham's public repeater list (no token). The whole list is fetched once, filtered to analog
  * FM repeaters on 2m and 70cm, and cached on disk for [CACHE_TTL_MS]. Searches run locally.
+ * Listings from secondary directories bundled with the app ([listings]) are merged in, adding
+ * repeaters Hearham lacks and corroborating the ones it has.
  */
 class HearhamProvider(
     private val client: OkHttpClient,
@@ -46,6 +49,8 @@ class HearhamProvider(
     private val url: HttpUrl = DEFAULT_URL.toHttpUrl(),
     /** Snapshot shipped in the APK, so search works on first launch with no network. */
     private val bundle: Bundle? = null,
+    /** Opens the bundled secondary listings (see [BundledListings]); null for none. */
+    private val listings: (() -> InputStream)? = null,
 ) : RepeaterProvider {
     override val source = RepeaterSource.HEARHAM
     override val supportsCounty = false
@@ -58,6 +63,8 @@ class HearhamProvider(
     private var memory: RepeaterCache.Entry? = null
     private var bundled: RepeaterCache.Entry? = null
     private var bundleFailed = false
+    private var secondary: List<Repeater>? = null
+    private var merged: Pair<RepeaterCache.Entry, RepeaterCache.Entry>? = null
 
     /**
      * Offline first: answers from the newest data on the phone (a download or the bundled
@@ -94,7 +101,23 @@ class HearhamProvider(
                 }.getOrNull()
             }
         }?.also { bundled = it }
-        return listOfNotNull(downloaded, snapshot).maxByOrNull { it.fetchedAtMillis }
+        return listOfNotNull(downloaded, snapshot).maxByOrNull { it.fetchedAtMillis }?.let { withListings(it) }
+    }
+
+    /** [entry] with the secondary listings merged in, computed once per entry. Call with [mutex] held. */
+    private suspend fun withListings(entry: RepeaterCache.Entry): RepeaterCache.Entry {
+        merged?.takeIf { it.first === entry }?.let { return it.second }
+        val extra = secondary ?: withContext(Dispatchers.IO) {
+            val open = listings ?: return@withContext emptyList()
+            runCatching { open().use { BundledListings.parse(it) } }
+                .onFailure { android.util.Log.w("Offset", "Bundled listings unreadable: ${it.javaClass.simpleName}") }
+                .getOrDefault(emptyList())
+        }.also { secondary = it }
+        val result = withContext(Dispatchers.Default) {
+            entry.copy(repeaters = DirectoryMerge.merge(entry.repeaters.map(::withOrigin), extra))
+        }
+        merged = entry to result
+        return result
     }
 
     private suspend fun load(force: Boolean): Pair<RepeaterCache.Entry, Boolean> = mutex.withLock {
@@ -104,7 +127,7 @@ class HearhamProvider(
             val fresh = RepeaterCache.Entry(clock.millis(), fetch())
             withContext(Dispatchers.IO) { cache.write(fresh.fetchedAtMillis, fresh.repeaters) }
             memory = fresh
-            fresh to false
+            withListings(fresh) to false
         } catch (e: RepeaterException) {
             if (local != null && !force) local to true else throw e
         }
@@ -142,6 +165,15 @@ class HearhamProvider(
     companion object {
         const val DEFAULT_URL = "https://hearham.com/api/repeaters/v1"
         const val CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000
+        private val IRLP_IMPORT = Regex("""irlp\.net/status/index\.php\?nodeid=\d+|Internet-connected IRLP node""", RegexOption.IGNORE_CASE)
+
+        /**
+         * Hearham imports IRLP nodes, and those entries say so in their notes. Marking their
+         * origin keeps an IRLP listing of the same node from counting as independent confirmation.
+         * Applied when merging, so it covers the bundle and downloads alike.
+         */
+        internal fun withOrigin(r: Repeater): Repeater =
+            if (r.notes?.contains(IRLP_IMPORT) == true) r.copy(listings = r.listings.map { it.copy(origin = RepeaterSource.IRLP) }) else r
         private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true; isLenient = true }
 
         /** Parses the API response and keeps operational analog FM repeaters on 2m and 70cm. */

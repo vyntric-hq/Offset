@@ -159,6 +159,29 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     500 m. It runs while the Repeaters screen's state is alive and stops when switched off or when
     another location source is chosen; it never asks for background location.
 
+63. **Secondary directories are bundled to corroborate Hearham** (user request: more records, with
+    source and verification flags). Only directories whose data may be redistributed are used:
+    IRLP's public node status list and OpenStreetMap (ODbL). RepeaterBook, the ARRL directory,
+    RFinder and myGMRS forbid redistribution and are never scraped. openrepeater.org publishes CC0
+    data but offers bulk download only to its admins; a request for an export is pending.
+64. **Matching rule** (`DirectoryMerge`): same output frequency within 2.5 kHz and either the same
+    callsign within 100 km (or with no coordinates to compare) or any callsign within 25 km, and
+    matching input frequencies when both are known.
+    Frequency coordination keeps two machines on one output far apart, and directories often list
+    a club call where another lists the trustee's. The default provider's values win; a secondary
+    listing only fills missing coordinates. Unmatched listings become repeaters of their own,
+    credited to their directory.
+65. **What "verified" means.** Offset never claims a repeater is on the air. It shows how many
+    independent directories list it, flags directories that disagree on the access tone, and, for
+    IRLP nodes, when the node itself last reported to the IRLP network. A listing copied from
+    another directory (Hearham's imported IRLP nodes) is shown but not counted as independent. IRLP nodes silent for 30
+    days or marked DOWN are left out of the bundle.
+66. **IRLP simplex link nodes** (offset 0) are kept as simplex entries: they are reachable on that
+    frequency, and they corroborate Hearham entries on the same frequency and site.
+67. **IRLP has no stated licence** for its status list. It is published for operators to find
+    nodes, Offset uses only the fields needed to program a radio, and credits IRLP wherever the
+    data appears. Remove `"src":"IRLP"` records if the IRLP project objects.
+
 ## Build and release
 
 39. **AGP 8.13.2, Kotlin 2.2.21 and Gradle 8.14.3** rather than the newest AGP 9 and Kotlin 2.4,

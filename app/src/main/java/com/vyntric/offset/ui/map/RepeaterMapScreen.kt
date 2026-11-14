@@ -56,6 +56,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.vyntric.offset.BuildConfig
 import com.vyntric.offset.domain.Repeater
 import com.vyntric.offset.domain.RepeaterSource
+import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.ui.components.LocalBottomInset
 import com.vyntric.offset.ui.components.tappable
 import com.vyntric.offset.ui.theme.Dimens
@@ -170,7 +171,9 @@ fun RepeaterMapScreen(
                         Text("  $label", style = OffsetTheme.type.footnote, color = colors.label)
                     }
                 }
-            Text(source.attribution, style = OffsetTheme.type.caption, color = colors.secondaryLabel)
+            Fmt.credits(source, repeaters).forEach {
+                Text(it.attribution, style = OffsetTheme.type.caption, color = colors.secondaryLabel)
+            }
         }
 
         // Recenter, bottom right above MapLibre's attribution button.

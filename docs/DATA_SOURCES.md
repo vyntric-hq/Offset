@@ -63,6 +63,46 @@ written permission for offline bundling. GMRS coverage in the bundle is limited 
 repeaters Hearham lists (2 at the 2026-11-13 snapshot); for GMRS, use RepeaterBook or import a
 CSV.
 
+## Bundled secondary listings: IRLP and OpenStreetMap
+
+These are not providers you pick. They ship in the APK
+(`app/src/main/assets/repeaters/listings.json.gz`, one shared schema, dates and counts in
+`listings.meta.json`) and are merged into the Hearham provider's data on the phone by
+`DirectoryMerge` (`app/.../domain/Verification.kt`). They are refreshed with
+`python3 scripts/update_listings_bundle.py` before a release; builds never fetch them.
+
+| | IRLP | OpenStreetMap |
+| --- | --- | --- |
+| Source | `https://status.irlp.net/nohtmlstatus.txt.zip`, the public node status list | Overpass query for `communication:amateur_radio:repeater=yes` in North America |
+| Kept | Nodes not marked DOWN that reported within 30 days, on 2m, 70cm or GMRS frequencies, worldwide. Offset 0 nodes are simplex link nodes and are kept as simplex. | Nodes and ways with an output frequency on those bands, FM modulation (`F3E`) or none given, and a callsign (tag, or parsed from the name) |
+| Fields | Node number, callsign, city, US state, coordinates, output, offset, access tone, last report time | Callsign, output, input or shift, CTCSS, city and state when tagged, coordinates |
+| Count (2026-11-13) | 607 | 81 |
+| Licence | None stated; published for operators to find nodes. Credited "Node data from the IRLP status page". | ODbL 1.0; the extract is a derived database, published under the ODbL in this repository (NOTICE). Credited "© OpenStreetMap contributors". |
+| Link from the detail sheet | The node's page on the IRLP status site | The OpenStreetMap object |
+
+**Merging.** Two records are the same repeater when the output frequencies agree within 2.5 kHz,
+the input frequencies do too when both are known, and either the callsigns match (within 100 km, or when coordinates are missing) or both are
+within 25 km of each other. A matching listing is added to the repeater's "Listed by" list and
+fills in coordinates if Hearham has none; Hearham's values are otherwise kept. A listing that
+matches nothing becomes a repeater credited to its own directory.
+
+**Independence.** Hearham imports IRLP nodes; those entries say "Internet-connected IRLP node"
+and link the node's status page. Offset marks their origin as IRLP, so the bundled IRLP listing
+of the same node is shown under "Listed by" (with the node's last report time) but does not count
+as a second source. With the 2026-11-13 data, 590 Hearham entries are matched by a listing, 12 of
+them by an independent one, and 89 repeaters are added. OpenStreetMap entries without a
+state tag get the state of the nearest county point (within 80 km), and entries without an
+input frequency only corroborate.
+
+**Verification shown in the app.** Count of independent directories ("2 sources"), disagreement
+on the access tone ("Sources disagree on tone", with each directory's tone in the detail sheet),
+and an IRLP node's last report time. Offset never states that a repeater is on the air.
+
+**Not used.** RepeaterBook, the ARRL Repeater Directory, RFinder and myGMRS do not permit
+redistribution and are never scraped. openrepeater.org publishes its data under CC0 but offers
+bulk downloads only to its administrators and limits API keys to 30 requests a day; an export
+has been requested.
+
 ## RepeaterBook (optional, off until configured)
 
 | | |

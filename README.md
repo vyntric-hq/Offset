@@ -126,7 +126,8 @@ Choose under Settings, Repeater data source. Details, caching and policies are i
 - **Hearham** (default). Free, no account. A snapshot of about 12,500 repeaters is included with
   the app, so searching and the map work offline from the first launch. When the phone is online
   and the data is more than a week old, Offset refreshes it quietly; Refresh fetches on demand.
-  Repeater data from [Hearham.com](https://hearham.com).
+  Repeater data from [Hearham.com](https://hearham.com). IRLP node listings and OpenStreetMap
+  repeater listings are bundled too and merged in (see below).
 - **RepeaterBook** (optional). Uses your own token: sign in at RepeaterBook, open
   [API Apps](https://www.repeaterbook.com/user/api_apps.php), generate a token for Offset, then
   paste it with your contact email under Settings, RepeaterBook, and tap Test connection. The
@@ -135,6 +136,17 @@ Choose under Settings, Repeater data source. Details, caching and policies are i
   approval applies to this app only; forks must apply separately.
 - **CHIRP CSV**. Import a coordinator list or your own list from the file picker (Repeaters,
   Import). Add Latitude and Longitude columns to enable distance search.
+
+**Verification.** Each repeater shows which directories list it. "2 sources" in a result row
+means two independent directories (Hearham, IRLP, OpenStreetMap) agree on the frequency and
+site (an entry one directory copied from another does not count); "IRLP node" means the
+repeater is an IRLP node and the sheet shows when it last reported in; "Sources disagree on
+tone" means they list different access tones. The detail sheet's
+"Listed by" section names each directory and, for IRLP nodes, when the node last reported to the
+IRLP network. This is evidence, not a guarantee: check on the air.
+
+The bundled data is limited to directories that allow redistribution. RepeaterBook, the ARRL
+directory, RFinder and myGMRS do not, and Offset does not scrape them.
 
 GMRS repeaters come from RepeaterBook (with your token) or an imported CSV; Hearham lists only a
 handful, and RepeaterBook data is never bundled (its policy forbids offline bundling). Downloaded
@@ -177,6 +189,8 @@ that speaks the same protocol, so the whole app works without hardware. See
 - [CHIRP](https://github.com/kk7ds/chirp) (GPL): the UV-5R protocol, memory map and file formats.
 - [baoclone](https://github.com/sergev/baoclone) by Serge Vakulenko (BSD): protocol cross check and test images.
 - [Hearham](https://hearham.com): repeater data from Hearham.com.
+- [IRLP](https://status.irlp.net): node data from the IRLP status page.
+- [OpenStreetMap](https://www.openstreetmap.org/copyright): repeater listings © OpenStreetMap contributors, ODbL 1.0.
 - [RepeaterBook](https://www.repeaterbook.com): data courtesy of RepeaterBook.com.
 - [MapLibre Native](https://github.com/maplibre/maplibre-native) (BSD-2-Clause) and [OpenFreeMap](https://openfreemap.org) tiles: © OpenStreetMap contributors, © OpenMapTiles.
 - [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) (MIT), [Inter](https://rsms.me/inter/) (OFL), AndroidX, OkHttp and kotlinx (Apache 2.0).

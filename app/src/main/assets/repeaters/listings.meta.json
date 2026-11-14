@@ -1,0 +1,14 @@
+{
+  "IRLP": {
+    "attribution": "Node data from the IRLP status page",
+    "fetchedAt": 1794617041000,
+    "records": 607,
+    "url": "https://status.irlp.net/nohtmlstatus.txt.zip"
+  },
+  "OSM": {
+    "attribution": "(c) OpenStreetMap contributors, ODbL 1.0",
+    "fetchedAt": 1794620168000,
+    "records": 81,
+    "url": "https://overpass-api.de"
+  }
+}

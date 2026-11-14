@@ -5,6 +5,19 @@ All notable changes to Offset are recorded here. The format follows
 [Semantic Versioning](https://semver.org/). The release workflow publishes the section whose
 heading matches the tag as the GitHub Release notes, so every tag needs a section here.
 
+## [0.2.0] - 2026-11-13
+
+### Added
+- IRLP node listings (607 nodes that reported in the last 30 days) and OpenStreetMap repeater
+  listings (81) ship with the app and are merged into the default Hearham data: 89 repeaters
+  are added and 590 Hearham entries gain a matching listing.
+- Verification on every repeater: list rows say "2 sources" (independent directories only),
+  "IRLP node" or "Sources disagree on tone", and the detail sheet's "Listed by" section names
+  each directory, which entries were copied from another directory, each tone when they differ,
+  and when an IRLP node last reported in.
+- Credits for every directory behind the results, in the result list, the map legend and About.
+- `scripts/update_listings_bundle.py` refreshes the IRLP and OpenStreetMap listings.
+
 ## [0.1.0] - 2026-11-13
 
 ### Added

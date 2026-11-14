@@ -50,6 +50,14 @@ fun AboutScreen(onBack: () -> Unit) {
                     CellRow("Hearham", subtitle = "Repeater data from Hearham.com, the default source.", chevron = true) { uri.openUri("https://hearham.com") }
                 }
                 cell {
+                    CellRow("IRLP", subtitle = "Node data from the IRLP status page, included with the app.", chevron = true) { uri.openUri("https://status.irlp.net") }
+                }
+                cell {
+                    CellRow("OpenStreetMap", subtitle = "Repeater listings \u00A9 OpenStreetMap contributors, ODbL 1.0, included with the app.", chevron = true) {
+                        uri.openUri("https://www.openstreetmap.org/copyright")
+                    }
+                }
+                cell {
                     CellRow("RepeaterBook", subtitle = "Data courtesy of RepeaterBook.com, when you configure your own token.", chevron = true) {
                         uri.openUri("https://www.repeaterbook.com")
                     }

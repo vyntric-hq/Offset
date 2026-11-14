@@ -28,7 +28,7 @@ byte for byte, except for the signature.
 - `dependenciesInfo` is off: no Google dependency metadata block (also an F-Droid requirement).
 - Baseline profile (`ArtProfile`) tasks are disabled; they are a known source of differing bytes.
 - R8 is deterministic for the same inputs and versions.
-- The bundled repeater snapshot is a committed file written deterministically (sorted records,
+- The bundled repeater snapshot and secondary listings are committed files written deterministically (sorted records,
   compact JSON, gzip with a zero timestamp). Builds never download it.
 - MapLibre's prebuilt native libraries are packaged unstripped (`jniLibs.keepDebugSymbols`), so the
   result does not depend on whether an NDK is installed. Release APKs contain the ARM ABIs only.

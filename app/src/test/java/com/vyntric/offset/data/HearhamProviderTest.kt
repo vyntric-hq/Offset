@@ -6,6 +6,7 @@ import com.vyntric.offset.data.repeaters.Http
 import com.vyntric.offset.domain.RepeaterException
 import com.vyntric.offset.domain.RepeaterFilters
 import com.vyntric.offset.domain.RepeaterQuery
+import com.vyntric.offset.domain.RepeaterSource
 import com.vyntric.offset.domain.Service
 import com.vyntric.offset.domain.UsState
 import com.vyntric.offset.protocol.Band
@@ -162,6 +163,49 @@ class HearhamProviderTest {
         Http.publicClient(), tmp.root.resolve("hearham.json"), "Offset/0.1.0 (github.com/vyntric-hq/offset)", clock,
         server.url("/api/repeaters/v1"), bundle,
     )
+
+    @Test fun `bundled listings add repeaters and corroborate matching ones`() = runTest {
+        val base = HearhamProvider(
+            Http.publicClient(), tmp.root.resolve("hearham.json"), "Offset/0.1.0 (github.com/vyntric-hq/offset)", clock,
+            server.url("/api/repeaters/v1"), bundleFrom(fixture, now),
+        ).search(sanJose).repeaters
+        val known = base.first { it.latitude != null }
+        val listings = """[
+            {"src":"IRLP","id":"3000","call":"${known.callsign}","out":${known.outputHz},"inp":${known.inputHz},"up":"100.0",
+             "lat":${known.latitude},"lon":${known.longitude},"seen":1794600000000,"url":"https://status.irlp.net/"},
+            {"src":"OSM","id":"node/1","call":"K6NEW","out":147555000,"inp":147555000,"lat":37.34,"lon":-121.89,"state":"CA"},
+            {"src":"NOPE","id":"x","call":"K6BAD","out":147555000}
+        ]"""
+        val p = HearhamProvider(
+            Http.publicClient(), tmp.root.resolve("hearham2.json"), "Offset/0.1.0 (github.com/vyntric-hq/offset)", clock,
+            server.url("/api/repeaters/v1"), bundleFrom(fixture, now), listings = { listings.byteInputStream() },
+        )
+        val r = p.search(sanJose).repeaters
+        assertEquals(base.size + 1, r.size)
+        val corroborated = r.first { it.id == known.id }.verification
+        assertEquals(listOf(RepeaterSource.HEARHAM, RepeaterSource.IRLP), corroborated.sources)
+        assertEquals(1794600000000L, corroborated.lastReportMillis)
+        val added = r.first { it.callsign == "K6NEW" }
+        assertEquals(RepeaterSource.OPENSTREETMAP, added.source)
+        assertEquals("CA", added.state)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test fun `Hearham entries imported from IRLP are marked with that origin`() {
+        val base = HearhamProvider.parse(fixture.byteInputStream()).first()
+        val imported = base.copy(notes = "Internet-connected IRLP node owned by N6ROB.\nSee http://www.irlp.net/status/index.php?nodeid=3671")
+        assertEquals(RepeaterSource.IRLP, HearhamProvider.withOrigin(imported).listings.single().origin)
+        assertEquals(RepeaterSource.HEARHAM, HearhamProvider.withOrigin(base.copy(notes = "Club repeater")).listings.single().origin)
+    }
+
+    @Test fun `unreadable bundled listings leave Hearham data working`() = runTest {
+        val p = HearhamProvider(
+            Http.publicClient(), tmp.root.resolve("hearham.json"), "Offset/0.1.0 (github.com/vyntric-hq/offset)", clock,
+            server.url("/api/repeaters/v1"), bundleFrom(fixture, now), listings = { "not json".byteInputStream() },
+        )
+        assertTrue(p.search(sanJose).repeaters.isNotEmpty())
+        assertTrue(p.search(sanJose).repeaters.all { it.source == RepeaterSource.HEARHAM })
+    }
 
     @Test fun `bundled snapshot answers on first launch with no network`() = runTest {
         val bundleDate = now.minusSeconds(30L * 24 * 3600)

@@ -60,14 +60,15 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
         s.message?.let { m -> item(key = "msg") { SectionFooter(m) } }
         item(key = "source") {
             InsetSection(header = "Repeater data source", footer = "Hearham is free and needs no account. RepeaterBook needs your own token. CSV searches a list you import.") {
-                RepeaterSource.entries.forEach { src ->
+                RepeaterSource.providers.forEach { src ->
                     cell {
                         CellRow(
                             src.displayName,
                             subtitle = when (src) {
-                                RepeaterSource.HEARHAM -> "Default. Included with the app, works offline, refreshes weekly when online."
+                                RepeaterSource.HEARHAM -> "Default, with IRLP and OpenStreetMap listings. Included with the app, works offline, refreshes weekly when online."
                                 RepeaterSource.REPEATERBOOK -> if (s.token.isBlank()) "Off until a token is configured below." else "Your token is configured."
                                 RepeaterSource.CSV -> "A CHIRP CSV from the file picker."
+                                else -> null
                             },
                             trailing = {
                                 if (s.settings.provider == src) Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = OffsetTheme.colors.accent)
@@ -105,7 +106,7 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
         }
         item(key = "cache") {
             InsetSection(header = "Cached data", footer = "Cached repeater data stays on this phone and is never shared or backed up.") {
-                RepeaterSource.entries.forEach { src ->
+                RepeaterSource.providers.forEach { src ->
                     val at = s.cacheDates[src]
                     cell {
                         CellRow(

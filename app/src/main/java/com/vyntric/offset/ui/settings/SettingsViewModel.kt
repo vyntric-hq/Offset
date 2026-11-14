@@ -74,7 +74,7 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
     fun dismissMessage() = local.update { it.copy(message = null) }
 
     private fun refreshCaches() = viewModelScope.launch {
-        val dates = RepeaterSource.entries.associateWith { c.provider(it).cachedAtMillis() }
+        val dates = RepeaterSource.providers.associateWith { c.provider(it).cachedAtMillis() }
         local.update { it.copy(cacheDates = dates) }
     }
 }

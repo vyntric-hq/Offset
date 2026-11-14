@@ -8,12 +8,39 @@ import com.vyntric.offset.protocol.Band
 import com.vyntric.offset.protocol.Squelch
 import com.vyntric.offset.protocol.ToneMode
 
-/** Where repeater data came from, with the attribution each source requires. */
-enum class RepeaterSource(val displayName: String, val attribution: String, val url: String) {
+/**
+ * Where repeater data came from, with the attribution each source requires. The first three are
+ * providers the user can pick; the others are directories bundled with the app that add and
+ * corroborate listings in the default provider.
+ */
+enum class RepeaterSource(val displayName: String, val attribution: String, val url: String, val isProvider: Boolean = true) {
     HEARHAM("Hearham", "Repeater data from Hearham.com", "https://hearham.com"),
     REPEATERBOOK("RepeaterBook", "Data courtesy of RepeaterBook.com", "https://www.repeaterbook.com"),
     CSV("Imported CSV", "Imported from a CHIRP CSV file", ""),
+    IRLP("IRLP", "Node data from the IRLP status page", "https://status.irlp.net", isProvider = false),
+    OPENSTREETMAP("OpenStreetMap", "\u00A9 OpenStreetMap contributors (ODbL)", "https://www.openstreetmap.org/copyright", isProvider = false),
+    ;
+
+    companion object {
+        /** The sources offered under Settings, Repeater data source. */
+        val providers: List<RepeaterSource> = entries.filter { it.isProvider }
+    }
 }
+
+/** One directory's entry for a repeater: who lists it, with what tone, and when it was last heard from. */
+data class Listing(
+    val source: RepeaterSource,
+    val uplinkTone: Squelch,
+    /** When the directory last had a report from the station itself (IRLP node status), if it tracks that. */
+    val lastReportMillis: Long? = null,
+    val detailUrl: String? = null,
+    /**
+     * The directory this listing's data originally came from: [source] itself, unless the
+     * directory copied it from another (Hearham imports IRLP nodes). Only listings with different
+     * origins corroborate each other.
+     */
+    val origin: RepeaterSource = source,
+)
 
 /** One repeater, in the same shape whichever provider supplied it. */
 data class Repeater(
@@ -40,7 +67,11 @@ data class Repeater(
     val service: Service = Gmrs.serviceOf(outputHz),
     /** Also carries a digital mode (DMR, Fusion, D-STAR, P25, NXDN) besides analog FM. */
     val mixedMode: Boolean = false,
+    /** Every directory that lists this repeater, [source] first. See [DirectoryMerge]. */
+    val listings: List<Listing> = listOf(Listing(source, uplinkTone, detailUrl = detailUrl)),
 ) {
+    val verification: Verification get() = Verification.of(listings)
+
     val offsetHz: Long? get() = inputHz?.let { it - outputHz }
     val band: Band? get() = Band.of(outputHz)
 
