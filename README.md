@@ -30,8 +30,11 @@ It is a programming tool first. Repeater search exists to fill channels.
 | <img src="docs/screenshots/radio.png" width="200" alt="Radio tab: the connected UV-5R and 14 staged channels, with a Write button"> | <img src="docs/screenshots/radio-type.png" width="200" alt="Radio type picker listing the UV-5R family, DM-32UV and RT-950 Pro"> | <img src="docs/screenshots/repeaters.png" width="200" alt="Repeaters near Denver with distance and bearing, three selected"> | <img src="docs/screenshots/map.png" width="200" alt="Map of nearby repeaters with band coloured pins and clusters"> |
 | **Confirm the write** | **Write and verify** | **Written and verified** | **Image library** |
 | <img src="docs/screenshots/write-confirm.png" width="200" alt="Write confirmation naming the radio model, firmware, ident and channel count"> | <img src="docs/screenshots/write-verify.png" width="200" alt="Write in progress, reading the radio back to verify"> | <img src="docs/screenshots/write-done.png" width="200" alt="Write finished: written and verified, with a backup saved"> | <img src="docs/screenshots/images.png" width="200" alt="Images tab with the written image, the factory read and the automatic backup"> |
+| **Reach: coverage over terrain** | **Reach: one link, both ways** | **Reach: your station** | **Reach: your team** |
+| <img src="docs/screenshots/reach-map.png" width="200" alt="Reach map around Denver: 2 m coverage shaded over the Front Range, repeater pins coloured by whether they hear you, and four team members, one out of range in the foothills"> | <img src="docs/screenshots/reach-link.png" width="200" alt="Link card for a repeater 32 miles away: likely both ways, with a terrain profile showing the ridge the signal bends over"> | <img src="docs/screenshots/reach-station.png" width="200" alt="Station editor: Yaesu FTM-400, dual-band collinear, 50 W, antenna 30 ft up on 50 ft of LMR-400"> | <img src="docs/screenshots/reach-paste.png" width="200" alt="Paste locations: four team members from coordinates and a grid square, each with its grid and coordinates"> |
 
-Screenshots are from a debug build talking to the simulated radio (see Building).
+Screenshots are from a debug build talking to the simulated radio (see Building). The Reach
+screenshots use a simulated position in Denver and repeater data from Hearham.com.
 
 ## Supported radios
 
