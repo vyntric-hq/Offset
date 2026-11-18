@@ -87,7 +87,7 @@ class UsbRadioLink(private val context: Context) : RadioLink {
         usb?.requestPermission(driver.device, pending)
     }
 
-    override suspend fun <T> session(radio: RadioDriver, block: (SerialPort) -> T): T = mutex.withLock {
+    override suspend fun <T> session(radio: RadioDriver, block: suspend (SerialPort) -> T): T = mutex.withLock {
         // Give the radio a moment between back to back clone sessions (read, write, verify).
         val wait = SESSION_GAP_MS - (System.currentTimeMillis() - lastClosedAt)
         if (wait > 0) delay(wait)

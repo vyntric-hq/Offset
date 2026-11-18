@@ -10,8 +10,12 @@ cross checked against sergev/baoclone `uv-5r.c`. Code: `protocol/src/main/kotlin
 - 9600 baud, 8 data bits, no parity, 1 stop bit. DTR and RTS are asserted when the port opens
   (pyserial does the same for CHIRP).
 - `UsbSerialAdapter` buffers surplus bytes because USB reads return whole packets.
-- Each operation (read, write, verify) is one clone session: open the port, handshake, transfer,
-  close. Sessions are at least 1.5 s apart so the radio can settle (`UsbRadioLink.SESSION_GAP_MS`).
+- A read is one clone session: open the port, handshake, transfer, close. A write is also one
+  session: handshake once, read the whole radio, save the backup, write the changed blocks and
+  read the radio back, then close. After a session ends the radio stays in clone mode until it
+  times out and restarts, and does not answer a new handshake for several seconds, so a write
+  cannot be split into separate sessions (`RadioDriver.oneSessionWrite`). Sessions are still at
+  least 1.5 s apart (`UsbRadioLink.SESSION_GAP_MS`).
 
 ## Handshake (`Uv5rClone.identify`)
 

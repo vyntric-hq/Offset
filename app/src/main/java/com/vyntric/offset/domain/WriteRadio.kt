@@ -10,7 +10,9 @@ import com.vyntric.offset.protocol.CloneProgress
 import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.RadioException
 import com.vyntric.offset.protocol.RadioImage
+import com.vyntric.offset.protocol.SerialPort
 import com.vyntric.offset.protocol.Sleeper
+import kotlinx.coroutines.CancellationException
 import java.time.Clock
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -25,6 +27,9 @@ import java.time.format.DateTimeFormatter
  * 5. read back after writing and compare;
  * 7. report every failure, saying whether the radio may be partially written.
  * Rule 6 (confirmation) is the caller's job; [Request.confirmedIdentity] carries what was shown.
+ *
+ * Each step is its own clone session, except for radios with [RadioDriver.oneSessionWrite] (the
+ * UV-5R), which do not answer a new session soon after one ends: all steps then share one.
  */
 class WriteRadio(
     private val link: RadioLink,
@@ -70,11 +75,52 @@ class WriteRadio(
         data class Failed(val stage: Stage, val message: String, val backupImageId: Long?, val radioMayBePartial: Boolean) : Outcome
     }
 
+    /** The three radio steps of a write, each failing with the radio's own exception. */
+    private class Steps(
+        val read: suspend () -> RadioImage,
+        val write: suspend (target: RadioImage, before: RadioImage) -> Int,
+        val readBack: suspend () -> RadioImage,
+    )
+
     suspend operator fun invoke(request: Request, onProgress: (CloneProgress) -> Unit): Outcome {
         val driver = request.driver
+        if (!driver.oneSessionWrite) {
+            fun clone(port: SerialPort) = driver.clone(port, sleeper, onProgress)
+            return perform(
+                request,
+                Steps(
+                    read = { link.session(driver) { clone(it).download() } },
+                    write = { target, before -> link.session(driver) { clone(it).upload(target, before) } },
+                    readBack = { link.session(driver) { clone(it).download(CloneProgress.Phase.VERIFYING) } },
+                ),
+            )
+        }
+        var outcome: Outcome? = null
+        return try {
+            link.session(driver) { port ->
+                val clone = driver.clone(port, sleeper, onProgress)
+                perform(
+                    request,
+                    Steps(
+                        read = { clone.download() },
+                        write = { target, before -> clone.upload(target, before) },
+                        readBack = { clone.download(CloneProgress.Phase.VERIFYING) },
+                    ),
+                ).also { outcome = it }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Every step reports its own failure, so this is opening the link (nothing happened
+            // yet) or closing it, after which the write's own outcome still stands.
+            outcome ?: Outcome.Blocked(Stage.READ, listOf(describe(e)))
+        }
+    }
+
+    private suspend fun perform(request: Request, steps: Steps): Outcome {
         // Rule 1: full read of the connected radio.
         val radio = try {
-            link.session(driver) { port -> driver.clone(port, sleeper, onProgress).download() }
+            steps.read()
         } catch (e: Exception) {
             return Outcome.Blocked(Stage.READ, listOf(describe(e)))
         }
@@ -148,7 +194,7 @@ class WriteRadio(
         var blocks = 0
         if (target != radio) {
             try {
-                blocks = link.session(driver) { port -> driver.clone(port, sleeper, onProgress).upload(target, before = radio) }
+                blocks = steps.write(target, radio)
             } catch (e: Exception) {
                 // A refusal before any block went out leaves the radio untouched.
                 val untouched = e is RadioException.IdentMismatch || e is RadioException.NoContact ||
@@ -159,7 +205,7 @@ class WriteRadio(
 
         // Rule 5: read back and compare.
         val readBack = try {
-            link.session(driver) { port -> driver.clone(port, sleeper, onProgress).download(CloneProgress.Phase.VERIFYING) }
+            steps.readBack()
         } catch (e: Exception) {
             return Outcome.Failed(
                 Stage.VERIFY,

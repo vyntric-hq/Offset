@@ -5,6 +5,8 @@ import com.vyntric.offset.MemoryLibrary
 import com.vyntric.offset.SimLink
 import com.vyntric.offset.fixedClock
 import com.vyntric.offset.protocol.Channel
+import com.vyntric.offset.protocol.CloneProgress
+import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.Duplex
 import com.vyntric.offset.protocol.ImageRegions
 import com.vyntric.offset.protocol.Uv5rImage
@@ -32,6 +34,11 @@ class WriteRadioTest {
         Channel(444_000_000, Duplex.PLUS, 5_000_000, Squelch.Dcs(23), Squelch.Dcs(23), name = "UHF"),
     )
 
+    /** The UV-5R protocol with a session per step, to reach the guards that only a new session needs. */
+    private val twoSessionUv5r = object : RadioDriver by Uv5rDriver {
+        override val oneSessionWrite = false
+    }
+
     private fun request(content: WriteRadio.Content = WriteRadio.Content.Channels(channels), ident: String? = factory.identHex) =
         WriteRadio.Request(content, "Trip", ident, Uv5rDriver)
 
@@ -48,8 +55,22 @@ class WriteRadioTest {
         assertEquals(channels + List(Uv5rImage.CHANNEL_COUNT - 3) { null }, now.channels())
         // Rule 3: settings, calibration and aux are untouched.
         assertTrue(ImageRegions.differsOnlyInWritableRegions(factory, now))
-        // Rule 1 and rule 5: read, write, read back.
-        assertEquals(3, link.sessions)
+        // Rule 1 and rule 5: read, write, read back, all in one session on a UV-5R.
+        assertEquals(1, link.sessions)
+    }
+
+    @Test fun `a UV-5R that restarts after every session is read, written and verified in one session`() = runTest {
+        radio.restartsAfterSession = true
+        val outcome = write(request()) {}
+        assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Verified)
+        assertEquals(channels, radio.currentImage().channels().take(3))
+        assertEquals(1, link.sessions)
+    }
+
+    @Test fun `a failure closing the session after a verified write still reports the write`() = runTest {
+        link.failOnClose = true
+        val outcome = write(request()) {}
+        assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Verified)
     }
 
     @Test fun `rule 2 - a different radio than the one confirmed blocks before writing`() = runTest {
@@ -103,9 +124,15 @@ class WriteRadioTest {
     }
 
     @Test fun `rule 7 - cable pulled mid write is reported as possibly partial with the backup`() = runTest {
-        link.beforeSession = { n -> if (n == 1) radio.detachAfterHostBytes = radio.hostBytesReceived + 24 + 20 * 2 }
         val many = List(40) { Channel(146_000_000L + it * 15_000L, name = "C$it") }
-        val outcome = write(request(WriteRadio.Content.Channels(many))) {}
+        var armed = false
+        val outcome = write(request(WriteRadio.Content.Channels(many))) { p ->
+            // Pull the cable two blocks into the write.
+            if (p.phase == CloneProgress.Phase.WRITING && !armed) {
+                armed = true
+                radio.detachAfterHostBytes = radio.hostBytesReceived + 20 * 2
+            }
+        }
         assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Failed)
         outcome as WriteRadio.Outcome.Failed
         assertTrue(outcome.radioMayBePartial)
@@ -128,7 +155,7 @@ class WriteRadioTest {
     @Test fun `radio swapped between read and write is caught by the protocol guard`() = runTest {
         val other = SimulatedRadio.fromImage(Uv5rImage.of(AppFixtures.bytes("fixtures/baoclone-uv5r-sunnyvale.img")))
         link.beforeSession = { n -> if (n == 1) link.radio = other }
-        val outcome = write(request()) {}
+        val outcome = write(request().copy(driver = twoSessionUv5r)) {}
         assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Failed)
         assertTrue(!(outcome as WriteRadio.Outcome.Failed).radioMayBePartial)
         assertEquals(0, other.blocksWritten)
@@ -137,7 +164,7 @@ class WriteRadioTest {
     @Test fun `a second radio of the same model connected after the read is refused`() = runTest {
         val sameModel = SimulatedRadio.fromImage(factory.withChannel(20, Channel(147_000_000, name = "OTHER")))
         link.beforeSession = { n -> if (n == 1) link.radio = sameModel }
-        val outcome = write(request()) {}
+        val outcome = write(request().copy(driver = twoSessionUv5r)) {}
         assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Failed)
         assertTrue(!(outcome as WriteRadio.Outcome.Failed).radioMayBePartial)
         assertEquals(0, sameModel.blocksWritten)

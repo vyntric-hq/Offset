@@ -36,6 +36,13 @@ interface RadioDriver {
      */
     val fixedSlots: Boolean
 
+    /**
+     * True when the radio does not answer a new clone session soon after one ends (the UV-5R
+     * stays in clone mode until it times out, then restarts). A write then reads, writes and reads
+     * back in one session, on one [RadioClone]; otherwise each step is a session of its own.
+     */
+    val oneSessionWrite: Boolean get() = false
+
     /** Channel limits to use before a radio of this family has been read. */
     val defaultProfile: RadioProfile
 
@@ -78,7 +85,11 @@ interface RadioDriver {
     fun sampleImage(): RadioImage
 }
 
-/** One clone session with a connected radio. Every failure is a [RadioException]. */
+/**
+ * One clone session with a connected radio. Every failure is a [RadioException]. For a driver
+ * with [RadioDriver.oneSessionWrite], download, upload and download again may follow each other
+ * on the same instance without a new handshake.
+ */
 interface RadioClone {
     /** Reads the whole image. Rule 1: a write always starts from a full read. */
     fun download(phase: CloneProgress.Phase = CloneProgress.Phase.READING): RadioImage

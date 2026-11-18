@@ -17,6 +17,10 @@ import java.io.IOException
  * Read: send `'S' addrHi addrLo size`, receive `'X' addrHi addrLo size` + data, send ACK.
  * The radio ACKs that ACK; CHIRP consumes it before the next block header and so do we.
  * Write: send `'X' addrHi addrLo size` + data, expect ACK.
+ *
+ * After a session ends the radio stays in clone mode until it times out and then restarts, so it
+ * does not answer a new handshake for several seconds. One instance therefore handshakes once:
+ * a download, an upload and a verifying download can follow each other in one session.
  */
 class Uv5rClone(
     private val port: SerialPort,
@@ -24,6 +28,12 @@ class Uv5rClone(
     private val onProgress: (CloneProgress) -> Unit = {},
 ) {
     private var firstRead = true
+
+    /** The ident from this session's handshake, once made. */
+    private var sessionIdent: ByteArray? = null
+
+    /** The last full download in this session, until something is written. */
+    private var lastDownload: Uv5rImage? = null
 
     /** Performs the handshake, trying each known magic in turn. Returns the 8 byte ident. */
     fun identify(): ByteArray = io {
@@ -44,7 +54,7 @@ class Uv5rClone(
 
     /** Downloads the full image (ident, main block, aux block). Rule 1: always the whole image. */
     fun download(phase: CloneProgress.Phase = CloneProgress.Phase.READING): Uv5rImage = io {
-        val ident = identify()
+        val ident = sessionIdent ?: identify()
         val (_, droppedByte) = readFirmwareProbe()
         val total = Uv5rImage.MAIN_SIZE + Uv5rImage.AUX_SIZE
         var done = 0
@@ -66,7 +76,7 @@ class Uv5rClone(
             done += size
             onProgress(CloneProgress(phase, done, total))
         }
-        Uv5rImage.assemble(ident, main, aux)
+        Uv5rImage.assemble(ident, main, aux).also { lastDownload = it }
     }
 
     /**
@@ -78,21 +88,24 @@ class Uv5rClone(
      * - every block must be inside the channel or name region;
      * - when [expectedBefore] is given, the radio's channel and name memory must still equal it.
      *   The ident names a model, not a unit, so this is what catches a second radio of the same
-     *   model being connected between the read and the write.
+     *   model being connected between the read and the write. When this session has just
+     *   downloaded exactly that memory, it is not read again.
      */
     fun upload(image: Uv5rImage, imageOffsets: List<Int>, expectedBefore: Uv5rImage? = null) = io {
         val bad = imageOffsets.filterNot { ImageRegions.isWritableBlock(it) }
         if (bad.isNotEmpty()) {
             throw RadioException.Unsupported("Refusing to write outside the channel and name regions")
         }
-        val ident = identify()
+        val ident = sessionIdent ?: identify()
         if (!ident.contentEquals(image.ident)) {
             throw RadioException.IdentMismatch(
                 "This image belongs to a different radio (image ${image.identHex}, radio ${ident.toHex()})."
             )
         }
         val (radioFirmware, _) = readFirmwareProbe()
-        val unchanged = expectedBefore?.let { matchesWritableRegions(it) } ?: true
+        val unchanged = expectedBefore?.let { before ->
+            lastDownload?.let { ImageRegions.mismatchedChannels(it, before).isEmpty() } == true || matchesWritableRegions(before)
+        } ?: true
         // The radio ACKs the ACK of the last block read; consume it so block ACKs stay aligned.
         port.read(1, TRAILING_ACK_TIMEOUT_MS)
         if (!unchanged) {
@@ -107,6 +120,7 @@ class Uv5rClone(
             )
         }
         val bytes = image.bytes()
+        lastDownload = null
         val total = imageOffsets.size * ImageRegions.BLOCK
         onProgress(CloneProgress(CloneProgress.Phase.WRITING, 0, total))
         imageOffsets.sorted().forEachIndexed { i, off ->
@@ -141,6 +155,7 @@ class Uv5rClone(
         val ack2 = port.read(1, IDENT_TIMEOUT_MS)
         if (ack2.isEmpty() || ack2[0] != ACK) throw RadioException.Protocol("Radio refused clone mode.")
         firstRead = true
+        sessionIdent = ident
         return ident
     }
 

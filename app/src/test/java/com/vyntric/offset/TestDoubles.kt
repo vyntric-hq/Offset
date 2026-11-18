@@ -22,16 +22,21 @@ class SimLink<D : SimulatedDevice>(var radio: D) : RadioLink {
     /** The driver of the last session, so tests can check which protocol was used. */
     var lastDriver: RadioDriver? = null
     var unplugged = false
+    /** Closing the port fails, as when the cable is pulled right after the session's last byte. */
+    var failOnClose = false
     var sessions = 0
     /** Runs before each session; lets a test swap radios or inject faults between sessions. */
     var beforeSession: (Int) -> Unit = {}
     override val cable: StateFlow<CableState> = MutableStateFlow(CableState.Simulated("test"))
     override fun requestPermission() = Unit
-    override suspend fun <T> session(driver: RadioDriver, block: (SerialPort) -> T): T {
+    override suspend fun <T> session(driver: RadioDriver, block: suspend (SerialPort) -> T): T {
         lastDriver = driver
         beforeSession(sessions++)
         if (unplugged) throw LinkUnavailableException("No programming cable found.")
-        return try { block(radio) } finally { radio.endSession() }
+        return try { block(radio) } finally {
+            radio.endSession()
+            if (failOnClose) throw LinkUnavailableException("The cable was unplugged.")
+        }
     }
 }
 

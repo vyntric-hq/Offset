@@ -34,6 +34,13 @@ class SimulatedRadio(
     var silent: Boolean = false
     var corruptWriteAddresses: Set<Int> = emptySet()
 
+    /**
+     * Like a real UV-5R: once a clone session ends the radio stays deaf (it waits out its clone
+     * timeout, then restarts) until [finishRestart], so a handshake right after a session fails.
+     */
+    var restartsAfterSession: Boolean = false
+    private var restarting = false
+
     /** Bytes received from the host since construction; use it to place [detachAfterHostBytes]. */
     val hostBytesReceived: Long get() = hostBytes
 
@@ -53,7 +60,7 @@ class SimulatedRadio(
                 detached = true
                 throw IOException("USB device detached")
             }
-            if (!silent) accept(b)
+            if (!silent && !restarting) accept(b)
         }
     }
 
@@ -73,9 +80,16 @@ class SimulatedRadio(
     /** Ends the clone session, as power cycling or closing the port would. */
     @Synchronized
     override fun endSession() {
+        if (restartsAfterSession && state != State.IDLE) restarting = true
         state = State.IDLE
         pending.clear()
         out.clear()
+    }
+
+    /** The radio has finished restarting and answers handshakes again. */
+    @Synchronized
+    fun finishRestart() {
+        restarting = false
     }
 
     /** Reattaches the cable after an injected detach. */

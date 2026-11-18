@@ -15,6 +15,7 @@ object Uv5rDriver : RadioDriver {
     override val capacity = Uv5rImage.CHANNEL_COUNT
     override val experimental = false
     override val fixedSlots = false
+    override val oneSessionWrite = true
     override val defaultProfile: RadioProfile = RadioModel.UV5R
     override val chirpModels: Set<String> = RadioModel.entries.map { it.chirpModel }.toSet()
     override val cableAdvice = ""

@@ -41,7 +41,7 @@ class SimulatedRadioLink(
 
     override fun requestPermission() = Unit
 
-    override suspend fun <T> session(driver: RadioDriver, block: (SerialPort) -> T): T = mutex.withLock {
+    override suspend fun <T> session(driver: RadioDriver, block: suspend (SerialPort) -> T): T = mutex.withLock {
         if (pacingMs > 0) delay(pacingMs)
         withContext(Dispatchers.IO) {
             val r = radios.getOrPut(driver.id) { load(driver) }
@@ -90,5 +90,5 @@ class SwitchingRadioLink(
 
     override fun requestPermission() = active().requestPermission()
 
-    override suspend fun <T> session(driver: RadioDriver, block: (SerialPort) -> T): T = active().session(driver, block)
+    override suspend fun <T> session(driver: RadioDriver, block: suspend (SerialPort) -> T): T = active().session(driver, block)
 }

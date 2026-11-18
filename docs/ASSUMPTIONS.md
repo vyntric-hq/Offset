@@ -34,9 +34,13 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
    Deleting the factory image makes the next read save a new one.
 10. **The firmware probe and ACK handling follow CHIRP, with baoclone's tolerance of an early or
     late ACK.** Real radios vary in timing. **(hardware)**
-11. **A 1.5 s gap between clone sessions** (read, write, verify) is assumed enough for the radio to
-    accept a new handshake without being power cycled. CHIRP users routinely download and upload
-    back to back. **(hardware)**
+11. **A UV-5R write is one clone session** (read, backup, write, read back). The first build used a
+    session per step with a 1.5 s gap, assuming the radio would accept a new handshake by then. A
+    real UV-5R (firmware HN5RV011, FTDI cable) did not: it stays in clone mode after a session,
+    then restarts, and the write session got no answer. Reading back within the same session is
+    assumed to return what the radio stored, as a later read would. The DM-32UV and RT-950 Pro
+    still use a session per step, since their protocols end each session with an explicit
+    command. **(hardware)**
 12. **DTR and RTS are asserted** on open, matching pyserial's default behaviour used by CHIRP.
     Some cable chips power the level shifter from these lines. **(hardware)**
 13. **The blacklist probe for the BTECH UV-5X3 and Radioddity UV-5G is not ported.** Those radios

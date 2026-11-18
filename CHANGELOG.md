@@ -7,6 +7,15 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-11-17
+
+### Fixed
+- Writing to a UV-5R failed with "The radio did not answer" after reading it, and nothing was
+  written. The radio does not answer a new programming session for several seconds after one
+  ends, and a write used three (read, write, verify). A UV-5R write is now one session.
+- "The radio did not answer" now says to wait 10 seconds and try again when the radio was just
+  read or written.
+
 ## [0.3.1] - 2026-11-14
 
 ### Added

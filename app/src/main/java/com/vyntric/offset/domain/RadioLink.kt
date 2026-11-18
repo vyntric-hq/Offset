@@ -30,11 +30,12 @@ interface RadioLink {
     /**
      * Opens the port for a radio of [driver]'s family (its serial speed, or its simulator), runs
      * [block] (blocking protocol code) on a background thread and always closes the port. Only
-     * one session runs at a time.
+     * one session runs at a time. [block] may suspend (to save a backup mid session); the port
+     * stays open meanwhile.
      *
      * @throws LinkUnavailableException when there is no usable cable.
      */
-    suspend fun <T> session(driver: RadioDriver, block: (SerialPort) -> T): T
+    suspend fun <T> session(driver: RadioDriver, block: suspend (SerialPort) -> T): T
 }
 
 class LinkUnavailableException(message: String) : Exception(message)

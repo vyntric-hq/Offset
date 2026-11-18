@@ -98,6 +98,15 @@ input frequency only corroborate.
 on the access tone ("Sources disagree on tone", with each directory's tone in the detail sheet),
 and an IRLP node's last report time. Offset never states that a repeater is on the air.
 
+**RepeaterBook Connect is not used.** It reads repeaters from RepeaterBook's own Android app
+(`content://com.zbm2.repeaterbook.RBContentProvider/repeaters`, documented at
+github.com/zbm2/RepeaterBookConnect). Evaluated 2026-11-17 and declined: every user would need the
+closed-source app from Google Play and a paid RepeaterBook Connect subscription, which would make
+Offset depend on a non-free app (F-Droid's NonFreeDep); the app decides the search area and
+filters, so Offset's state, county and text searches would only filter what it returns; it has
+one tone per repeater, undocumented status and mode codes, no stated GMRS coverage, and no
+published terms for third-party use. Offset waits for RepeaterBook's API approval instead.
+
 **Not used.** RepeaterBook, the ARRL Repeater Directory, RFinder and myGMRS do not permit
 redistribution and are never scraped. openrepeater.org publishes its data under CC0 but offers
 bulk downloads only to its administrators and limits API keys to 30 requests a day; an export
