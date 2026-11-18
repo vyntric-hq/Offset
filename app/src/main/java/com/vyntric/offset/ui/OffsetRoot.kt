@@ -58,6 +58,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.vyntric.offset.AppContainer
 import com.vyntric.offset.domain.RadioOperations
+import com.vyntric.offset.ui.components.KeepScreenOn
 import com.vyntric.offset.domain.WriteRadio
 import com.vyntric.offset.protocol.CloneProgress
 import com.vyntric.offset.ui.components.LocalBottomInset
@@ -93,6 +94,8 @@ fun OffsetRoot(container: AppContainer) {
     val current = Tab.entries.firstOrNull { route == it.route || route.startsWith(it.route + "/") }
         ?: if (route == "about") Tab.SETTINGS else Tab.RADIO
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val radioState by container.operations.state.collectAsStateWithLifecycle()
+    KeepScreenOn(radioState is RadioOperations.State.Running)
 
     Box(Modifier.fillMaxSize().background(OffsetTheme.colors.background)) {
         CompositionLocalProvider(LocalBottomInset provides TabBarHeight + navInset) {

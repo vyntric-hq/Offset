@@ -7,6 +7,12 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-11-17
+
+### Changed
+- The screen stays on while Offset reads or writes a radio, so the phone does not go to sleep
+  with the progress hidden. It turns off normally again once the read or write ends.
+
 ## [0.3.2] - 2026-11-17
 
 ### Fixed
