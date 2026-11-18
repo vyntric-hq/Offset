@@ -19,8 +19,9 @@ features.
 | Path | What lives there |
 | --- | --- |
 | `protocol/` | Pure Kotlin, no Android: image model, channel codec, clone protocol, simulated radio, CHIRP .img and CSV. |
+| `propagation/` | Pure Kotlin, no Android: the NTIA Longley-Rice port, terrain profiles and tiles, link budgets and the coverage sweep behind Reach. |
 | `app/.../transport` | USB serial (usb-serial-for-android) and the simulated radio link. |
-| `app/.../data` | Room (images, staging), repeater providers, settings, encrypted credentials, location. |
+| `app/.../data` | Room (images, staging, Reach inventory), repeater providers, terrain tiles, settings, encrypted credentials, location. |
 | `app/.../domain` | Use cases: ReadRadio, WriteRadio, BuildStaging, ImportImage, ExportImage, RadioOperations. |
 | `app/.../ui` | Compose screens, one ViewModel per screen, shared components and theme. |
 
@@ -33,7 +34,7 @@ which runs reads and writes in the application scope so they cannot be cancelled
 You need JDK 17 and the Android SDK (platform 36, build tools 35.0.0).
 
 ```sh
-./gradlew test                         # protocol and app unit tests
+./gradlew test                         # protocol, propagation and app unit tests
 ./gradlew lint                         # Android lint, must be clean
 ./gradlew assembleDebug                # debug APK with the simulated radio switch
 ./gradlew connectedDebugAndroidTest    # end to end tests on a device or emulator

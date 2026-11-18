@@ -250,3 +250,47 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     attestations need a public repository (or Enterprise Cloud). The release keystore and its
     passwords live only on the maintainer's machine (`~/.config/offset-release/`, owner-only) and in
     GitHub Actions secrets.
+
+## Reach (0.4.0)
+
+82. **HF is out of scope.** Reach models line-of-sight bands (6 m, 2 m, 1.25 m, 70 cm, GMRS).
+    The user agreed that HF propagation belongs in a separate app, if anywhere. On 6 m the screen
+    says that sporadic-E openings are not modelled.
+83. **Longley-Rice point-to-point at median conditions.** 50% time, location and situation,
+    mobile variability, vertical polarization, average ground (permittivity 15, conductivity
+    0.005 S/m), continental temperate climate, surface refractivity 301 N-units. These suit most
+    of the continental US; coastal and desert areas differ by a few dB.
+84. **Verdict bands.** Likely at 10 dB or more over the receiver's 12 dB SINAD sensitivity,
+    marginal from 0 to 10 dB, unlikely below 0. The 10 dB allows for fading the median ignores.
+85. **Far station defaults.** Handheld 1.5 m, 5 W, 0 dBi; mobile 1.8 m, 50 W, 2.15 dBi, 1 dB
+    loss; base 10 m, 50 W, 6 dBi, 2 dB loss; repeater 30 m, 50 W, 6 dBi, 4 dB (feedline and
+    duplexer), -120 dBm. Receivers -121 dBm (0.2 microvolts, the usual spec sheet figure). The
+    directories list no repeater power or height, so these are shown on every link card and the
+    repeater ones can be changed for all repeaters.
+86. **Catalog figures.** Radio powers are the makers' high power figures (UV-5R 4 W as in
+    Offset's driver; BF-F8HP 8 W; DM-32UV 5 W; RT-950 Pro 10 W). Antenna gains are typical
+    published figures converted to dBi (dBd + 2.15); the stock UV-5R rubber duck is taken as
+    -4 dBi on 2 m and -2 dBi on 70 cm, reflecting published measurements that stock handheld
+    antennas are lossy. Collinear figures are the makers' and are optimistic. Feedline loss per
+    100 ft at 144 and 440 MHz is from manufacturer tables (RG-58 6.1/11.7, RG-8X 4.7/8.6, RG-213
+    2.8/5.1, LMR-400 1.5/2.7 dB) and scaled as f^k between and beyond them.
+87. **Beam pattern.** A Yagi's horizontal pattern is the usual parabolic main lobe (12 dB at
+    one beamwidth off axis) floored at a 15 dB front to back ratio, with the beamwidth from its
+    gain assuming a round main lobe. Elevation patterns are not modelled.
+88. **Coverage area.** Out to 1.8 times the combined radio horizon plus 15 km, between 30 and
+    150 km; 360 radials, at most 320 samples on each. Buildings, trees and clutter are not
+    modelled, and the link card says so.
+89. **One far station type for the map shading.** The shaded map assumes every far station is
+    of the type chosen ("To handhelds", "To repeaters" and so on). Pins use each target's own
+    type: repeaters the repeater assumptions, places their saved type.
+90. **Reach uses the selected repeater provider, RepeaterBook included,** as the user decided
+    on 2026-11-18. The RepeaterBook API application sent the same day (request 302) described
+    Offset before Reach existed; tell RepeaterBook about Reach if they ask.
+91. **No address search.** Places are entered as GPS, coordinates, grid squares, map links or a
+    long press, so no location is ever sent to a geocoding service.
+92. **Places beyond 300 km are modelled over smooth ground.** No VHF/UHF path that long closes
+    over land, and fetching terrain for it would mean hundreds of tiles; those places show as
+    unlikely without downloading anything.
+93. **Reach shows repeaters on 2 m, 70 cm and GMRS only,** because those are the bands the
+    repeater directories Offset uses carry. On 6 m and 1.25 m the map still models coverage and
+    places, and says why no repeaters appear.

@@ -10,6 +10,13 @@ License, or (at your option) any later version. See LICENSE.
 Ported code
 -------------------------------------------------------------------------------------------------
 
+NTIA Irregular Terrain Model (https://github.com/NTIA/itm)
+  Developed by employees of the National Telecommunications and Information Administration, a
+  work of the U.S. Government not subject to copyright in the United States (15 U.S.C. 105),
+  provided "AS IS" without warranty. Its point-to-point mode (ITM_P2P_TLS and the functions it
+  uses, version 1.4) is translated from C++ to Kotlin in the propagation module
+  (propagation/.../itm/). Changed 2026: translated to Kotlin; no change to the model.
+
 CHIRP (https://github.com/kk7ds/chirp)
   Copyright 2012 Dan Smith and CHIRP contributors. GPL-2.0-or-later.
   The UV-5R clone protocol (identification magics, block read and write, firmware probe,

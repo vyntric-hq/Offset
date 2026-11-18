@@ -65,6 +65,37 @@ data class StagingEntity(
     val updatedAt: Long,
 )
 
+/**
+ * Reach inventory: radios, antennas, stations and places, one JSON document per row with its
+ * kind, so the shapes can grow without a migration per field. Decoded only by InventoryRepository.
+ */
+@Entity(tableName = "reach_items", indices = [Index("kind")])
+data class ReachItemEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val kind: String,
+    val json: String,
+    val updatedAt: Long,
+)
+
+@Dao
+interface ReachItemDao {
+    /** Bounded well above what Reach allows (500 places plus a user's equipment and stations). */
+    @Query("SELECT * FROM reach_items ORDER BY id LIMIT 5000")
+    fun observeAll(): Flow<List<ReachItemEntity>>
+
+    @Insert
+    suspend fun insert(entity: ReachItemEntity): Long
+
+    @Query("UPDATE reach_items SET json = :json, updatedAt = :now WHERE id = :id")
+    suspend fun update(id: Long, json: String, now: Long)
+
+    @Query("DELETE FROM reach_items WHERE id = :id")
+    suspend fun delete(id: Long)
+
+    @Query("SELECT * FROM reach_items WHERE kind = :kind LIMIT 1")
+    suspend fun firstOfKind(kind: String): ReachItemEntity?
+}
+
 @Dao
 interface ImageDao {
     @Query(
@@ -110,10 +141,11 @@ interface StagingDao {
     suspend fun put(entity: StagingEntity)
 }
 
-@Database(entities = [ImageEntity::class, StagingEntity::class], version = 2, exportSchema = true)
+@Database(entities = [ImageEntity::class, StagingEntity::class, ReachItemEntity::class], version = 3, exportSchema = true)
 abstract class OffsetDatabase : RoomDatabase() {
     abstract fun images(): ImageDao
     abstract fun staging(): StagingDao
+    abstract fun reachItems(): ReachItemDao
 
     companion object {
         /** 0.3.0 adds the radio family; every earlier image is a UV-5R family image. */
@@ -123,6 +155,17 @@ abstract class OffsetDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2)
+        /** 0.4.0 adds Reach: the station inventory and places. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `reach_items` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`kind` TEXT NOT NULL, `json` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_reach_items_kind` ON `reach_items` (`kind`)")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }

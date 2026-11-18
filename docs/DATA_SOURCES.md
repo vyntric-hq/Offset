@@ -185,3 +185,20 @@ network is involved.
 
 Applying a CSV to a stored image (Images, an image, Import CHIRP CSV into this image) is a
 separate feature that writes rows into their Location slots.
+
+## Terrain tiles (Reach)
+
+| | |
+| --- | --- |
+| Endpoint | `GET https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png` (AWS Open Data "Terrain Tiles", Mapzen's Terrarium encoding: elevation = R x 256 + G + B / 256 - 32768 m) |
+| Auth | None |
+| User-Agent | `Offset/<version> (github.com/vyntric-hq/offset)` |
+| What is sent | Only tile coordinates for the area being mapped. Nothing identifies the user; the position can be inferred to within the area of the tiles, as with any map. |
+| Zoom | Up to zoom 11 (about 60 m per pixel in the US), coarser for larger areas so one coverage map needs at most about 10 tiles across (a few MB). |
+| Storage | `noBackupFilesDir/terrain/{z}/{x}/{y}.png`, kept until removed under Settings, Reach terrain. Settings can also save every tile for a state, plus 150 km past its borders (the largest area Reach maps) (zooms 9 to 11), for offline use. Offline, Reach falls back to a coarser zoom already on the phone, and failing that models smooth ground for the missing part and says so. |
+| Hillshade | The Reach map also shows a hillshade from the same tiles, fetched by MapLibre through its own cache. |
+| Attribution | USGS 3DEP (formerly NED), SRTM and GMTED2010 courtesy of the U.S. Geological Survey; Canada terrain data contains information licensed under the Open Government Licence, Canada; Mexico terrain data source: INEGI, Continental relief, 2016; global ETOPO1 terrain data, U.S. National Oceanic and Atmospheric Administration. Shown in About and in the map's attribution. Full list: https://github.com/tilezen/joerd/blob/master/docs/attribution.md |
+
+Reach also uses whichever repeater provider is selected (Hearham, RepeaterBook or an imported
+CSV), searched around the station with the same provider code as the Repeaters tab, and credits
+it under the Reach panel as the Repeaters tab does.

@@ -9,7 +9,9 @@ import androidx.lifecycle.viewModelScope
 import com.vyntric.offset.AppContainer
 import com.vyntric.offset.data.Settings
 import com.vyntric.offset.domain.RepeaterException
+import com.vyntric.offset.data.TerrainRepository
 import com.vyntric.offset.domain.RepeaterSource
+import com.vyntric.offset.domain.UsState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,10 @@ data class SettingsUiState(
     val testResult: String? = null,
     val testOk: Boolean = false,
     val cacheDates: Map<RepeaterSource, Long?> = emptyMap(),
+    /** Elevation tiles Reach keeps on the phone, in bytes. */
+    val terrainBytes: Long = 0,
+    /** A state's terrain being saved for offline use: which, and how far along. */
+    val terrainDownload: Pair<UsState, Float>? = null,
     val message: String? = null,
 )
 
@@ -71,10 +77,42 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
         local.update { it.copy(message = "Simulated radio reset to its factory image.") }
     }
 
+    /** Rough size of saving [state]'s terrain, for the picker. */
+    fun terrainEstimateBytes(state: UsState): Long =
+        c.terrain.tilesInBox(state.maxLat, state.minLon, state.minLat, state.maxLon).size * TerrainRepository.AVERAGE_TILE_BYTES
+
+    /** Saves the terrain for [state] so Reach works there without signal. */
+    fun downloadTerrain(state: UsState) {
+        if (local.value.terrainDownload != null) return
+        viewModelScope.launch {
+            local.update { it.copy(terrainDownload = state to 0f) }
+            val message = try {
+                val failed = c.terrain.download(state.maxLat, state.minLon, state.minLat, state.maxLon) { done, total ->
+                    local.update { it.copy(terrainDownload = state to done.toFloat() / total) }
+                }
+                if (failed == 0) "Terrain for ${state.displayName} saved for offline use."
+                else "Saved most of ${state.displayName}; $failed tiles could not be fetched. Try again with a better connection."
+            } catch (e: java.io.IOException) {
+                "Could not save terrain for ${state.displayName}: ${e.message ?: "storage error"}."
+            } finally {
+                local.update { it.copy(terrainDownload = null) }
+            }
+            local.update { it.copy(message = message) }
+            refreshCaches()
+        }
+    }
+
+    fun clearTerrain() = viewModelScope.launch {
+        c.terrain.clear()
+        local.update { it.copy(message = "Saved terrain removed.") }
+        refreshCaches()
+    }
+
     fun dismissMessage() = local.update { it.copy(message = null) }
 
     private fun refreshCaches() = viewModelScope.launch {
         val dates = RepeaterSource.providers.associateWith { c.provider(it).cachedAtMillis() }
-        local.update { it.copy(cacheDates = dates) }
+        val terrain = c.terrain.sizeBytes()
+        local.update { it.copy(cacheDates = dates, terrainBytes = terrain) }
     }
 }

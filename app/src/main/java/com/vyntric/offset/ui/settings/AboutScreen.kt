@@ -74,6 +74,16 @@ fun AboutScreen(onBack: () -> Unit) {
                     }
                 }
                 cell {
+                    CellRow("Longley-Rice (NTIA ITM)", subtitle = "Reach's terrain model, ported from NTIA's Irregular Terrain Model, a public domain work of the U.S. Government.", chevron = true) {
+                        uri.openUri("https://github.com/NTIA/itm")
+                    }
+                }
+                cell {
+                    CellRow("Terrain tiles", subtitle = "Elevation from the AWS Open Data terrain tiles: USGS 3DEP, SRTM and GMTED2010 courtesy of the U.S. Geological Survey; Canada under the Open Government Licence; Mexico from INEGI.", chevron = true) {
+                        uri.openUri("https://registry.opendata.aws/terrain-tiles/")
+                    }
+                }
+                cell {
                     CellRow("MapLibre and OpenFreeMap", subtitle = "Map by MapLibre Native (BSD). Tiles from OpenFreeMap: \u00A9 OpenMapTiles, data \u00A9 OpenStreetMap contributors.",
                         chevron = true) { uri.openUri("https://openfreemap.org") }
                 }

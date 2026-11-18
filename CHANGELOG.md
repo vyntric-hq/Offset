@@ -7,6 +7,25 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-18
+
+### Added
+- **Reach**, a new tab that maps how far your station's signal carries over the real terrain on
+  VHF and UHF, and which repeaters and people are inside it.
+  - Save your radios, antennas and stations once (radio, antenna, power, height, feedline, a
+    beam's heading, and GPS or a fixed home location), then pick a station in one tap. A catalog
+    of common radios and antennas fills in the numbers.
+  - Two directions: "Who hears me" (your transmitter) and "Who I hear" (theirs), on each band the
+    station has, to handhelds, mobiles, base stations or repeaters.
+  - Coverage is computed on the phone with a port of NTIA's Longley-Rice terrain model, sweeps
+    in as it is modelled, and is drawn in three bands (likely, marginal, unlikely) with contours.
+  - Tap any repeater or place for its link both ways, with a terrain profile showing the line of
+    sight, the Fresnel zone and what blocks it. Repeaters can be added to staging from there.
+  - Add places (team members, a friend's house) by long press on the map, coordinates, a grid
+    square or a map link, or paste a whole team's locations at once.
+  - Elevation tiles are kept on the phone, so an area works offline once mapped. Settings can save
+    a whole state ahead of a trip, show how much is stored, and remove it.
+
 ## [0.3.3] - 2026-11-17
 
 ### Changed

@@ -1,0 +1,21 @@
+# Expected results published by NTIA in https://github.com/NTIA/itm (master, ITM v1.4), public domain.
+# ntia_p2p_*: p2p.csv (A__db to 0.01 dB, terrain in pfls.csv, rows 1..5 = ntia_profiles.csv ntia_p2p_1..5).
+# ntia_cmd_*: cmd_examples/o_p2ptls.txt and o_p2pcr_tbl.txt (0.1 dB, terrain cmd_examples/pfl.txt, warnings 0x0000).
+#   The CR table is run as TLS the way NTIA's ITM_P2P_CR does: time = reliability, location = 50, situation = confidence.
+# warnings is blank where NTIA did not publish it.
+id,profile,h_tx,h_rx,climate,N_0,f_mhz,pol,epsilon,sigma,mdvar,time,location,situation,A_db,warnings
+ntia_p2p_1,ntia_p2p_1,10,1,5,301,230,1,15,0.008,12,50,17,23,207.65,
+ntia_p2p_2,ntia_p2p_2,3,1.5,5,301,480,1,15,0.008,12,22,22,22,157.10,
+ntia_p2p_3,ntia_p2p_3,15,3,4,301,990,0,15,0.008,12,15,40,50,178.53,
+ntia_p2p_4,ntia_p2p_4,3,5,2,301,5600,0,15,0.008,12,90,30,88,183.26,
+ntia_p2p_5,ntia_p2p_5,1.5,10,1,301,8800,1,15,0.008,12,23,95,20,218.91,
+ntia_cmd_tls,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,50,50,50,114.5,0
+ntia_cmd_cr_r10_c10,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,10,50,10,110.9,0
+ntia_cmd_cr_r10_c60,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,10,50,60,117.2,0
+ntia_cmd_cr_r10_c90,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,10,50,90,129.1,0
+ntia_cmd_cr_r65_c10,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,65,50,10,110.9,0
+ntia_cmd_cr_r65_c60,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,65,50,60,117.4,0
+ntia_cmd_cr_r65_c90,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,65,50,90,129.2,0
+ntia_cmd_cr_r90_c10,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,90,50,10,110.9,0
+ntia_cmd_cr_r90_c60,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,90,50,60,117.5,0
+ntia_cmd_cr_r90_c90,ntia_cmd_pfl,15,3,5,301,3500,1,15,0.005,1,90,50,90,129.3,0

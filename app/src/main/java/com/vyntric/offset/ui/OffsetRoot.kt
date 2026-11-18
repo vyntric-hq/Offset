@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.CellTower
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Radar
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Warning
@@ -71,6 +72,7 @@ import com.vyntric.offset.ui.components.tappable
 import com.vyntric.offset.ui.images.ImageDetailScreen
 import com.vyntric.offset.ui.images.ImagesScreen
 import com.vyntric.offset.ui.radio.RadioScreen
+import com.vyntric.offset.ui.reach.ReachScreen
 import com.vyntric.offset.ui.repeaters.RepeatersScreen
 import com.vyntric.offset.ui.settings.AboutScreen
 import com.vyntric.offset.ui.settings.SettingsScreen
@@ -80,6 +82,7 @@ import com.vyntric.offset.ui.theme.OffsetTheme
 private enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     RADIO("radio", "Radio", Icons.Rounded.Radio),
     REPEATERS("repeaters", "Repeaters", Icons.Rounded.CellTower),
+    REACH("reach", "Reach", Icons.Rounded.Radar),
     IMAGES("images", "Images", Icons.Rounded.Inventory2),
     SETTINGS("settings", "Settings", Icons.Rounded.Settings),
 }
@@ -109,6 +112,7 @@ fun OffsetRoot(container: AppContainer) {
             ) {
                 composable(Tab.RADIO.route) { RadioScreen(container) }
                 composable(Tab.REPEATERS.route) { RepeatersScreen(container) }
+                composable(Tab.REACH.route) { ReachScreen(container) }
                 composable(Tab.IMAGES.route) { ImagesScreen(container) { id -> nav.navigate("images/$id") } }
                 composable("images/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { e ->
                     val id = e.arguments?.getLong("id") ?: 0L

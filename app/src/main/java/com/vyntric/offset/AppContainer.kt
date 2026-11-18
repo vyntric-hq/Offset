@@ -13,6 +13,9 @@ import com.vyntric.offset.data.LocationSource
 import com.vyntric.offset.data.SettingsRepository
 import com.vyntric.offset.data.StagingRepository
 import com.vyntric.offset.data.db.OffsetDatabase
+import androidx.room.withTransaction
+import com.vyntric.offset.data.InventoryRepository
+import com.vyntric.offset.data.TerrainRepository
 import com.vyntric.offset.data.repeaters.CsvImportProvider
 import com.vyntric.offset.data.repeaters.HearhamProvider
 import com.vyntric.offset.data.repeaters.Http
@@ -60,6 +63,7 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
         .addMigrations(*OffsetDatabase.MIGRATIONS).build()
     val images = ImageRepository(db.images(), clock)
     val staging = StagingRepository(db.staging(), clock)
+    val inventory = InventoryRepository(db.reachItems(), clock) { block -> db.withTransaction { block() } }
 
     val usbLink = UsbRadioLink(app)
     val simulatedLink = SimulatedRadioLink(
@@ -110,6 +114,24 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
         Http.authenticatedClient(), File(repeaterDir, "repeaterbook"), { credentials.credentials.value }, userAgentBase, clock,
     )
     val csvProvider = CsvImportProvider(File(repeaterDir, "imported-csv.json"), clock)
+
+    /** Elevation tiles for Reach, kept out of backups like the repeater caches. */
+    val terrain = TerrainRepository(TerrainRepository.client(), File(app.noBackupFilesDir, "terrain"), "$userAgentBase)", ::decodeTile)
+
+    private fun decodeTile(bytes: ByteArray): IntArray? {
+        val options = android.graphics.BitmapFactory.Options().apply {
+            inPreferredConfig = android.graphics.Bitmap.Config.ARGB_8888
+            inScaled = false
+            inPremultiplied = false
+        }
+        val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+        return try {
+            if (bitmap.width != 256 || bitmap.height != 256) null
+            else IntArray(256 * 256).also { bitmap.getPixels(it, 0, 256, 0, 0, 256, 256) }
+        } finally {
+            bitmap.recycle()
+        }
+    }
 
     init {
         // Unplugging the cable forgets the radio, so nothing is written against a stale read.

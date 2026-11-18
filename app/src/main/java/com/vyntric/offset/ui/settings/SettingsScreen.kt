@@ -31,7 +31,10 @@ import com.vyntric.offset.data.ThemeMode
 import com.vyntric.offset.data.Units
 import com.vyntric.offset.domain.RepeaterSource
 import com.vyntric.offset.ui.Fmt
+import com.vyntric.offset.domain.UsState
+import com.vyntric.offset.ui.components.BarAction
 import com.vyntric.offset.ui.components.ButtonRow
+import com.vyntric.offset.ui.components.OffsetSheet
 import com.vyntric.offset.ui.components.CellRow
 import com.vyntric.offset.ui.components.InsetSection
 import com.vyntric.offset.ui.components.LargeTitleScreen
@@ -126,6 +129,33 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
                 }
             }
         }
+        item(key = "terrain") {
+            var picking by remember { mutableStateOf(false) }
+            val dl = s.terrainDownload
+            InsetSection(
+                header = "Reach terrain",
+                footer = "Reach fetches elevation for the area it maps and keeps it here, so the same area works offline. Save a whole state before heading somewhere without signal.",
+            ) {
+                cell { CellRow("Terrain on this phone", value = megabytes(s.terrainBytes)) }
+                cell {
+                    if (dl != null) {
+                        CellRow("Saving ${dl.first.displayName}", value = "${(dl.second * 100).toInt()}%")
+                    } else {
+                        ButtonRow("Save a state for offline") { picking = true }
+                    }
+                }
+                cell { ButtonRow("Remove saved terrain", destructive = true, enabled = s.terrainBytes > 0 && dl == null) { vm.clearTerrain() } }
+            }
+            if (picking) {
+                OffsetSheet(onDismiss = { picking = false }, title = "Save terrain", leadingAction = { BarAction("Cancel") { picking = false } }) {
+                    InsetSection(footer = "Sizes are estimates. Download over Wi-Fi for large states.") {
+                        UsState.entries.sortedBy { it.displayName }.forEach { st ->
+                            cell { CellRow(st.displayName, value = "about ${megabytes(vm.terrainEstimateBytes(st))}", onClick = { picking = false; vm.downloadTerrain(st) }) }
+                        }
+                    }
+                }
+            }
+        }
         item(key = "search") {
             InsetSection(header = "Search defaults") {
                 cell { SegmentedRow("Units", listOf("Miles", "Kilometers"), s.settings.units.ordinal) { i -> vm.update { it.copy(units = Units.entries[i]) } } }
@@ -160,6 +190,9 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
         item(key = "pad") { Box(Modifier.padding(8.dp)) }
     }
 }
+
+private fun megabytes(bytes: Long): String =
+    if (bytes < 1_000_000) "${bytes / 1000} KB" else String.format(java.util.Locale.US, "%.0f MB", bytes / 1_000_000.0)
 
 private const val RB_REGISTER = "https://www.repeaterbook.com/index.php/component/users/?view=registration"
 private const val RB_TOKENS = "https://www.repeaterbook.com/user/api_apps.php"

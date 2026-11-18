@@ -11,6 +11,9 @@ It is a programming tool first. Repeater search exists to fill channels.
 - Amateur (2m, 70cm) and GMRS repeaters: near you (a radius or the closest 100), by state and
   county, or by callsign, city or frequency, with a filter to hide mixed-mode repeaters.
 - A map of the results or of everything on the phone, with band coloured pins and clustering.
+- Reach: a terrain-aware coverage map for your own station on VHF and UHF, showing which
+  repeaters and people you can work in each direction, with a terrain profile for any link.
+  Modelled on the phone with NTIA's Longley-Rice model; see [docs/REACH.md](docs/REACH.md).
 - Simplex presets: national calling, 2m and 70cm simplex, NOAA weather, FRS/GMRS 1 to 22 and GMRS
   repeater pairs.
 - No accounts, no analytics, no crash reporting, no Google Play Services. Runs on GrapheneOS.
@@ -206,7 +209,8 @@ app works without hardware. See
 ## Documentation
 
 - [docs/PROTOCOL.md](docs/PROTOCOL.md): each radio family's clone protocol, memory map and record layout as implemented
-- [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md): each repeater source, its caching and attribution
+- [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md): each repeater source and the terrain tiles, their caching and attribution
+- [docs/REACH.md](docs/REACH.md): how Reach models coverage, and what it assumes
 - [docs/REPRODUCIBLE.md](docs/REPRODUCIBLE.md): rebuilding and comparing releases, signing key setup
 - [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md): decisions made and what needs a radio to confirm
 - [CHANGELOG.md](CHANGELOG.md), [CONTRIBUTING.md](CONTRIBUTING.md), [NOTICE](NOTICE)
@@ -222,6 +226,8 @@ app works without hardware. See
 - [IRLP](https://status.irlp.net): node data from the IRLP status page.
 - [OpenStreetMap](https://www.openstreetmap.org/copyright): repeater listings © OpenStreetMap contributors, ODbL 1.0.
 - [RepeaterBook](https://www.repeaterbook.com): data courtesy of RepeaterBook.com.
+- [NTIA Irregular Terrain Model](https://github.com/NTIA/itm) (public domain, U.S. Government work): the Longley-Rice model behind Reach.
+- [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/): elevation from USGS 3DEP, SRTM and GMTED2010 courtesy of the U.S. Geological Survey, Canada under the Open Government Licence, and Mexico from INEGI.
 - [MapLibre Native](https://github.com/maplibre/maplibre-native) (BSD-2-Clause) and [OpenFreeMap](https://openfreemap.org) tiles: © OpenStreetMap contributors, © OpenMapTiles.
 - [usb-serial-for-android](https://github.com/mik3y/usb-serial-for-android) (MIT), [Inter](https://rsms.me/inter/) (OFL), AndroidX, OkHttp and kotlinx (Apache 2.0).
 

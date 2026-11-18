@@ -19,4 +19,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "offset"
-include(":protocol", ":app")
+include(":protocol", ":propagation", ":app")
