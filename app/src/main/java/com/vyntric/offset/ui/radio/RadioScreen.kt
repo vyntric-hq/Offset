@@ -190,8 +190,8 @@ fun RadioScreen(container: AppContainer) {
             item(key = "staging-footer") {
                 SectionFooter(
                     if (fixedSlots) {
-                        "Numbers are the radio's channel numbers. Channels keep their numbers on this radio because its zones " +
-                            "and scan lists refer to them; new channels go into free numbers and a zone named Offset. Swipe left to remove."
+                        "Numbers are the radio's channel numbers. Channels keep their numbers on this radio because " +
+                            "${state.target.fixedSlotsReason} Swipe left to remove."
                     } else {
                         "Numbers are the radio's channel numbers; empty channels stay empty. Drag the handle to reorder, swipe left to remove."
                     },

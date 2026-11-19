@@ -23,10 +23,12 @@ data class StagingTarget(
     val fixedSlots: Boolean,
     /** Digital modes this radio can hold; a staged digital channel of another mode cannot be written. */
     val digitalModes: Set<String> = emptySet(),
+    /** Why channels keep their numbers on this radio ([RadioDriver.fixedSlotsReason]). */
+    val fixedSlotsReason: String = "",
 ) {
     companion object {
-        fun of(image: RadioImage) = StagingTarget(image.capacity, image.profile, image.driver.fixedSlots, image.driver.digitalModes)
-        fun of(driver: RadioDriver) = StagingTarget(driver.capacity, driver.defaultProfile, driver.fixedSlots, driver.digitalModes)
+        fun of(image: RadioImage) = StagingTarget(image.capacity, image.profile, image.driver.fixedSlots, image.driver.digitalModes, image.driver.fixedSlotsReason)
+        fun of(driver: RadioDriver) = StagingTarget(driver.capacity, driver.defaultProfile, driver.fixedSlots, driver.digitalModes, driver.fixedSlotsReason)
     }
 }
 

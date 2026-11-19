@@ -39,11 +39,14 @@ fun interface Sleeper {
 
 /** Failures talking to a radio. Every message is written to be shown to the user. */
 sealed class RadioException(message: String, cause: Throwable? = null) : Exception(message, cause) {
-    class NoContact : RadioException(
-        "The radio did not answer. Check that it is on, the cable is fully seated in the radio, " +
-            "and the volume is turned up. A radio restarts for a few seconds after it is read or " +
-            "written, so if you just did either, wait 10 seconds and try again."
-    )
+    class NoContact(message: String = DEFAULT) : RadioException(message) {
+        companion object {
+            const val DEFAULT =
+                "The radio did not answer. Check that it is on, the cable is fully seated in the radio, " +
+                    "and the volume is turned up. A radio restarts for a few seconds after it is read or " +
+                    "written, so if you just did either, wait 10 seconds and try again."
+        }
+    }
     class Protocol(message: String) : RadioException(message)
     class Timeout(message: String) : RadioException(message)
     class Disconnected(cause: Throwable?) : RadioException("The cable was disconnected.", cause)

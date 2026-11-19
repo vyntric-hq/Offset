@@ -23,6 +23,8 @@ object Dm32uvDriver : RadioDriver {
     override val capacity = Dm32uvLayout.CH_COUNT
     override val experimental = false
     override val fixedSlots = true
+    override val fixedSlotsReason =
+        "its zones and scan lists refer to them; new channels go into free numbers and a zone named Offset."
     override val defaultProfile: RadioProfile = Dm32uvProfile
     override val chirpModels: Set<String> = setOf("DM-32UV")
 

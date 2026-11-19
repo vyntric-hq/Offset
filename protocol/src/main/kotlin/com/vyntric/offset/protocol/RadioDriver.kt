@@ -37,6 +37,12 @@ interface RadioDriver {
     val fixedSlots: Boolean
 
     /**
+     * For a [fixedSlots] family, why channels keep their numbers and where new ones go, finishing
+     * the sentence "Channels keep their numbers on this radio because ...".
+     */
+    val fixedSlotsReason: String get() = ""
+
+    /**
      * True when the radio does not answer a new clone session soon after one ends (the UV-5R
      * stays in clone mode until it times out, then restarts). A write then reads, writes and reads
      * back in one session, on one [RadioClone]; otherwise each step is a session of its own.
@@ -172,7 +178,7 @@ interface RadioImage {
 
 /** Every family Offset supports, in the order the radio type picker lists them. */
 object RadioDrivers {
-    val all: List<RadioDriver> by lazy { listOf(Uv5rDriver, Dm32uvDriver, Rt950ProDriver) }
+    val all: List<RadioDriver> by lazy { listOf(Uv5rDriver, Dm32uvDriver, Rt950ProDriver, NicFw950Driver) }
 
     val default: RadioDriver get() = Uv5rDriver
 

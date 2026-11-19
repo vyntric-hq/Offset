@@ -7,6 +7,25 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-19
+
+### Added
+
+- Radtel RT-950 Pro running nicsure's nicFW950 firmware (experimental): read, write and restore
+  its 999 channels. Pick "RT-950 Pro (nicFW950)" as the radio type. Only the channel blocks that
+  change are written, each checked against the radio first; the radio restarts afterwards and
+  Offset reads it back to verify.
+
+### Changed
+
+- RT-950 Pro (stock firmware): the handshake now waits 3 seconds for the radio, as the CHIRP
+  module shown working on this radio does.
+
+### Fixed
+
+- The channel editor no longer uppercases names on radios that show lowercase (RT-950 Pro,
+  DM-32UV, nicFW950); the UV-5R family still gets capitals.
+
 ## [0.4.1] - 2026-11-18
 
 ### Added

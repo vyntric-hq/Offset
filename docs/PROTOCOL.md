@@ -259,3 +259,15 @@ names) plus APRS (commands 54 and 55), 33,152 bytes. Channel records are 32 byte
 two tone words (DCS index or CTCSS tenths), signalling, PTT ID, power and scrambler, flags (narrow,
 busy lockout, scan, TX enable, AM), frequency hopping code, 12 byte GB2312 name. Offset writes the
 channel segment only.
+
+**Radtel RT-950 Pro on nicFW950** (`NicFw950*.kt`, from nicsure's nicFW880/950 wiki and RT950Pro
+BTLE bridge, checked against the NicFW950 RMS app). 38400 baud, no handshake. Packets start `AA`,
+numbers little endian. Read: `AA 30 addr32 00` answered `AA 30 addr32` + 128 bytes + sum. Write:
+`AA 40 addr32` + 128 bytes + sum, answered `AA 40`. The sum is the low byte of the address and
+data bytes added. `AA 48` commits (answered `AA 48`), `AA 50` reboots. The image is the channel
+section, flash 0x50200 to 0x5F600: 62 byte `channelInfo` records, slots 0 to 3 the VFOs and
+channel N in slot N + 3. A record is active when bytes 24 and 25 hold `0xC950`. Fields: RX and TX
+(u32, 10 Hz), groups, RX and TX subtones (CTCSS tenths, or `0x8000` | octal DCS code, `0x4000`
+inverted), clarifier, modulation, bandwidth, busy lock, power (0 no transmit to 6 very high),
+reversed, PTT ID, magic, scrambler, 30 byte ASCII name. Offset writes only the changed blocks of
+channel records, then commits and reboots.

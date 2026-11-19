@@ -23,6 +23,9 @@ interface RadioProfile {
     /** True when the radio shows names in capitals only, so names are uppercased. */
     val uppercaseNames: Boolean
 
+    /** False when the radio has no per channel scan setting (it scans some other way), so Offset hides it. */
+    val storesScanAdd: Boolean get() = true
+
     /** Nominal watts per level, used for CHIRP CSV export (CHIRP parses watts). */
     fun watts(power: Power): Double
 

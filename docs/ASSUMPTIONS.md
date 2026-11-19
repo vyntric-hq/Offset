@@ -305,3 +305,43 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
 93. **Reach shows repeaters on 2 m, 70 cm and GMRS only,** because those are the bands the
     repeater directories Offset uses carry. On 6 m and 1.25 m the map still models coverage and
     places, and says why no repeaters appear.
+
+## RT-950 Pro on nicFW950 (0.5.0)
+
+94. **nicFW950 is its own radio type**, not detected automatically. Stock firmware waits for
+    `PROGRAMBT9000U` at 115200 baud and nicFW for `AA` packets at 38400, so probing one protocol
+    would send the other's bytes to the radio. The user picks "RT-950 Pro (nicFW950)".
+95. **Sources are nicsure's own published material,** read for facts only (none of it carries a
+    licence, and no code is copied): the nicFW880/950 wiki (serial protocol, `channelInfo`,
+    storage map), the RT950Pro BTLE bridge's channel manager, and the NicFW950 RMS desktop app,
+    whose compiled code settles where the wiki and bridge differ. The RMS puts channel N at
+    `0x50200 + (N + 3) * 62` (N from 1), checks the active magic `0xC950` (the wiki's `0xABC6` is
+    nicFW880's), sums the address and data bytes for the checksum (the wiki says data only), sends
+    `AA 30` reads as 7 bytes, and after writing sends `AA 48` (commit) then `AA 50` (reboot).
+    **(hardware)**
+96. **Slots 0 to 3 are VFOs and never written;** a read must find the `0xC950` magic in some slot,
+    or the radio is refused as another nicFW (an RT-880 answers the same protocol). **(hardware)**
+97. **The image is the channel section only** (0xF400 bytes). Settings, band plan, calibration
+    and groups' names are not read, so a backup restores channels only.
+98. **Writes send only the 128 byte blocks that changed,** each read again first and compared
+    with the read made moments before (the protocol has no ident, so this is rule 2), and read
+    once more just before it is written: a channel saved on the keypad in between stops the
+    write before the commit, and the VFO or unused bytes sharing the first and last blocks are
+    sent back as the radio holds them at that moment. The
+    radio stays at 38400 baud; the RMS's faster speeds are optional.
+99. **Power:** Offset writes Low 3, Medium 4 and High 5 of nicFW's seven levels and reads Zero to
+    Low as Low and Very High as High; an unchanged channel keeps its byte. Transmit off is "N/T"
+    (0) with the transmit frequency kept. Watts shown are the stock firmware's 10/5/1 W because
+    nicFW's levels depend on its power calibration. **(hardware)**
+100. **New channels start "Auto" modulation** (the band plan's choice, FM on 2 m and 70 cm), with
+    no groups, clarifier or scrambler. nicFW has no per channel scan flag (it scans groups), so
+    the channel editor hides "Scan add" for this radio and every channel reads as scanned.
+101. **Channels keep their numbers on nicFW950** (as on the DM-32UV): reordering is off, and new
+    channels go into free slots, because each record carries groups and other settings Offset
+    keeps but does not model, which would otherwise stay behind in the old slot.
+102. **A deleted channel loses its frequencies and magic and keeps its other bytes,** as nicsure's
+    bridge does. Names are up to 30 printable ASCII characters, zero padded.
+103. **After the reboot Offset waits 4 seconds,** then retries the first read for up to four
+    attempts a second apart, before reading back. **(hardware)**
+104. **The stock RT-950 Pro handshake now waits 3 seconds,** not 1.5, matching the timeout floor in
+    Nathan Barguss's transport that the CHIRP module shown working on hardware uses.

@@ -6,6 +6,8 @@ import com.vyntric.offset.fixedClock
 import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.Dm32uvDriver
 import com.vyntric.offset.protocol.Duplex
+import com.vyntric.offset.protocol.NicFw950Driver
+import com.vyntric.offset.protocol.NicFw950Simulator
 import com.vyntric.offset.protocol.Rt950ProDriver
 import com.vyntric.offset.protocol.Sleeper
 import com.vyntric.offset.protocol.Squelch
@@ -60,6 +62,41 @@ class MultiRadioWriteTest {
         assertEquals(repeater, sim.currentImage().channel(10))
         // The AM airband channel the radio held is written back untouched.
         assertEquals(read.image.channel(5), sim.currentImage().channel(5))
+    }
+
+    @Test fun `RT-950 Pro on nicFW950 - an edit is written, the radio restarts, and the read back verifies`() = runTest {
+        val sim = NicFw950Driver.simulator(NicFw950Driver.sampleImage()) as NicFw950Simulator
+        sim.rebootingReads = 1
+        val link = SimLink(sim)
+        val library = MemoryLibrary()
+        val session = RadioSession()
+        val read = ReadRadio(link, library, session, fixedClock, Sleeper.NONE) { NicFw950Driver }.invoke {}
+        assertEquals(NicFw950Driver, link.lastDriver)
+        // Records carry groups Offset does not model, so channels keep their numbers.
+        val target = StagingTarget.of(read.image)
+        assertTrue(target.fixedSlots)
+        val build = BuildStaging { 1L }
+        val staged = build.fromImage(read.image)
+        assertEquals(staged, build.move(staged, 0, 1, target))
+        val slots = read.image.channels().toMutableList().also { it[10] = repeater }
+        val outcome = WriteRadio(link, library, session, fixedClock, Sleeper.NONE)(
+            WriteRadio.Request(WriteRadio.Content.Channels(slots), "Trip", read.image.identity, NicFw950Driver),
+        ) {}
+        assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Verified)
+        assertEquals(1, sim.reboots)
+        assertEquals(repeater, sim.currentImage().channel(10))
+        // Channel 6's "very high" power and groups, which Offset does not model, are untouched.
+        assertEquals(read.image.channel(5), sim.currentImage().channel(5))
+        assertTrue(read.image.differsOnlyInWritableRegions(sim.currentImage()))
+    }
+
+    @Test fun `a stock RT-950 Pro image cannot be restored to a nicFW950 radio`() = runTest {
+        val sim = NicFw950Driver.simulator(NicFw950Driver.sampleImage()) as NicFw950Simulator
+        val outcome = WriteRadio(SimLink(sim), MemoryLibrary(), RadioSession(), fixedClock, Sleeper.NONE)(
+            WriteRadio.Request(WriteRadio.Content.FromImage(Rt950ProDriver.sampleImage()), "x", null, NicFw950Driver),
+        ) {}
+        assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Blocked)
+        assertEquals(0, sim.blocksWritten)
     }
 
     @Test fun `restoring an image of one family onto another is blocked`() = runTest {

@@ -75,7 +75,7 @@ data class ChannelDraft(
         }
         val channel = Channel(
             rxFreqHz = rxHz, duplex = duplex, offsetHz = offHz, txSquelch = txS, rxSquelch = rxS, power = power,
-            wide = wide, scanAdd = scan, busyLockout = bcl, pttId = pttId, pttIdCode = pttIdCode, name = name.trim().uppercase(),
+            wide = wide, scanAdd = scan, busyLockout = bcl, pttId = pttId, pttIdCode = pttIdCode, name = name.trim().let { if (model.uppercaseNames) it.uppercase() else it },
         )
         ChannelValidator.validate(channel, model).forEach { p -> problems.putIfAbsent(p.field, p.message) }
         return Result(if (problems.isEmpty()) channel else null, problems)
@@ -134,7 +134,7 @@ fun ChannelEditorSheet(
                 TextFieldRow(
                     "Name", draft.name, { touched = true; draft = draft.copy(name = (if (model.uppercaseNames) it.uppercase() else it).take(model.nameLength)) },
                     placeholder = "Up to ${model.nameLength} characters",
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    keyboardOptions = KeyboardOptions(capitalization = if (model.uppercaseNames) KeyboardCapitalization.Characters else KeyboardCapitalization.Words),
                     error = show(ChannelValidator.Field.NAME),
                 )
             }
@@ -208,7 +208,7 @@ fun ChannelEditorSheet(
             }
             cell { SegmentedRow("Bandwidth", listOf("Wide", "Narrow"), if (draft.wide) 0 else 1) { draft = draft.copy(wide = it == 0) } }
             cell { ToggleRow("Busy channel lockout", draft.bcl, { draft = draft.copy(bcl = it) }) }
-            cell { ToggleRow("Scan add", draft.scan, { draft = draft.copy(scan = it) }) }
+            if (model.storesScanAdd) cell { ToggleRow("Scan add", draft.scan, { draft = draft.copy(scan = it) }) }
         }
         InsetSection(header = "PTT-ID", footer = "PTT-ID sends a DTMF code when you key up (BOT), unkey (EOT) or both.") {
             cell {

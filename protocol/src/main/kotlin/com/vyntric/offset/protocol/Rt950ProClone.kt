@@ -162,7 +162,8 @@ class Rt950ProClone(
         const val IDENTITY_SIZE = 16
         const val MODEL_SIZE = 12
         const val MODEL_PREFIX = "RT-950"
-        const val IDENT_TIMEOUT_MS = 1_500L
+        /** Nathan Barguss's transport, used in CHIRP on hardware, floors every timeout to 3 s. */
+        const val IDENT_TIMEOUT_MS = 3_000L
         const val BLOCK_TIMEOUT_MS = 3_000L
         const val END_DELAY_MS = 100L
         private const val HANDSHAKE_STOPPED = "The radio stopped answering during the handshake."
