@@ -54,7 +54,46 @@ object Catalog {
         antenna("yagi3", "3-element 2 m Yagi", AntennaKind.YAGI, mapOf(TWO_METER to 7.0)),
         antenna("yagi5-70", "5-element 70 cm Yagi", AntennaKind.YAGI, mapOf(SEVENTY_CM to 9.0)),
         antenna("six-vertical", "6 m half-wave vertical", AntennaKind.VERTICAL, mapOf(SIX_METER to 2.15)),
+
+        // ZBM2 Industries. The maker states about 3.5 dBi for every whip; a quarter wave on a
+        // handheld cannot beat a half-wave dipole, so these use realistic handheld figures.
+        antenna("zbm2-fww-2m70", "ZBM2 Foul Weather Whip V2, 2 m/70 cm", AntennaKind.HANDHELD_WHIP, mapOf(TWO_METER to -2.0, SEVENTY_CM to 0.0)),
+        antenna("zbm2-fww-125-70", "ZBM2 Foul Weather Whip V2, 1.25 m/70 cm", AntennaKind.HANDHELD_WHIP, mapOf(ONE_TWENTY_FIVE to -1.0, SEVENTY_CM to 0.0)),
+        antenna("zbm2-fww-uhf7", "ZBM2 Foul Weather Whip V2, 70 cm 7 in", AntennaKind.HANDHELD_WHIP, mapOf(SEVENTY_CM to 0.0)),
+        antenna("zbm2-fww-gmrs-murs", "ZBM2 Foul Weather Whip V2, GMRS/MURS", AntennaKind.HANDHELD_WHIP, mapOf(GMRS to 0.0)),
+        antenna("zbm2-fww-gmrs6", "ZBM2 Foul Weather Whip V2, GMRS 6 in", AntennaKind.HANDHELD_WHIP, mapOf(GMRS to 0.0)),
+        antenna("zbm2-stubby", "ZBM2 Stubby, 2 m/70 cm", AntennaKind.HANDHELD_WHIP, mapOf(TWO_METER to -6.0, SEVENTY_CM to -3.0)),
+        antenna("zbm2-tough-whip", "ZBM2 Tough Whip NMO, 2 m/70 cm", AntennaKind.MOBILE, mapOf(TWO_METER to 2.15, SEVENTY_CM to 2.15)),
+
+        // Practical Comms jungle antennas: quarter-wave ground planes with drooping radials,
+        // hoisted into a tree or on the collapsible frame. No gain is published.
+        antenna("pc-jungle-vu", "Practical Comms Jungle Antenna, 2 m/70 cm", AntennaKind.VERTICAL, mapOf(TWO_METER to 2.0, SEVENTY_CM to 2.0)),
+        antenna("pc-jungle-gmrs", "Practical Comms Jungle Antenna, GMRS", AntennaKind.VERTICAL, mapOf(GMRS to 2.0)),
+        antenna("pc-jungle-220", "Practical Comms Jungle Antenna, 220 MHz", AntennaKind.VERTICAL, mapOf(ONE_TWENTY_FIVE to 2.0)),
+
+        // N9TAX Labs slim jims: half-wave radiators, about 2 dBi as measured in reviews. The
+        // integrated cable versions bring their cable as the feedline (see integratedCable).
+        antenna("n9tax-dual-10", "N9TAX Slim Jim, 2 m/70 cm, 10 ft cable", AntennaKind.J_POLE, mapOf(TWO_METER to 2.15, SEVENTY_CM to 2.15)),
+        antenna("n9tax-dual-16", "N9TAX Slim Jim, 2 m/70 cm, 16 ft cable", AntennaKind.J_POLE, mapOf(TWO_METER to 2.15, SEVENTY_CM to 2.15)),
+        antenna("n9tax-dual", "N9TAX Slim Jim, 2 m/70 cm, standard", AntennaKind.J_POLE, mapOf(TWO_METER to 2.15, SEVENTY_CM to 2.15)),
+        antenna("n9tax-gmrs-10", "N9TAX Slim Jim, MURS/GMRS, 10 ft cable", AntennaKind.J_POLE, mapOf(GMRS to 2.15)),
+        antenna("n9tax-gmrs-16", "N9TAX Slim Jim, MURS/GMRS, 16 ft cable", AntennaKind.J_POLE, mapOf(GMRS to 2.15)),
+        antenna("n9tax-gmrs", "N9TAX Slim Jim, MURS/GMRS, standard", AntennaKind.J_POLE, mapOf(GMRS to 2.15)),
+        antenna("n9tax-2m", "N9TAX Slim Jim, 2 m single band", AntennaKind.J_POLE, mapOf(TWO_METER to 2.15)),
+        antenna("n9tax-70", "N9TAX Slim Jim, 70 cm single band", AntennaKind.J_POLE, mapOf(SEVENTY_CM to 2.15)),
     )
+
+    /**
+     * The cable an antenna comes with, so picking it fills in the feedline. N9TAX does not say
+     * which coax its integrated cable is; RG-58 is the usual thin cable on these.
+     */
+    fun integratedCable(antenna: Antenna): Pair<Feedline, Double>? = when (antenna.catalogKey) {
+        "n9tax-dual-10", "n9tax-gmrs-10" -> Feedline.RG58 to 10 * FOOT_M
+        "n9tax-dual-16", "n9tax-gmrs-16" -> Feedline.RG58 to 16 * FOOT_M
+        else -> null
+    }
+
+    private const val FOOT_M = 0.3048
 
     /** Common antenna heights above ground, for one-tap choices. */
     val heightPresets: List<Pair<String, Double>> = listOf(

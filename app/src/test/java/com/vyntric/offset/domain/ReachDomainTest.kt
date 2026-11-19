@@ -18,6 +18,31 @@ import org.junit.Test
 
 class ReachDomainTest {
     @Test
+    fun `catalog antennas have unique keys and no handheld whip beats a dipole`() {
+        val keys = Catalog.antennas.map { it.catalogKey }
+        assertEquals(keys.size, keys.toSet().size)
+        // Makers advertise 3.5 dBi and more for handheld whips; physics allows no more than a
+        // half-wave dipole's 2.15 dBi, and the catalog must not pass the claim on.
+        Catalog.antennas.filter { it.kind == com.vyntric.offset.domain.reach.AntennaKind.HANDHELD_WHIP }
+            .forEach { a -> a.gainDbi.forEach { (band, g) -> assertTrue("${a.name} on $band: $g dBi", g <= 2.15) } }
+        // The ZBM2, Practical Comms and N9TAX lines are all there, each fitting a radio on its bands.
+        val ht = Catalog.radios.first { it.catalogKey == "uv5r" }
+        val gmrs = Catalog.radios.first { it.catalogKey == "gmrs-ht" }
+        val thd75 = Catalog.radios.first { it.catalogKey == "thd75" }
+        assertTrue(Catalog.antennasFor(ht).any { it.catalogKey == "n9tax-dual-16" })
+        assertTrue(Catalog.antennasFor(ht).any { it.catalogKey == "zbm2-fww-2m70" })
+        assertTrue(Catalog.antennasFor(gmrs).any { it.catalogKey == "n9tax-gmrs-10" })
+        assertTrue(Catalog.antennasFor(gmrs).any { it.catalogKey == "pc-jungle-gmrs" })
+        assertTrue(Catalog.antennasFor(thd75).any { it.catalogKey == "pc-jungle-220" })
+        assertTrue(Catalog.antennasFor(thd75).any { it.catalogKey == "zbm2-fww-125-70" })
+        // A slim jim sold with 16 ft of cable brings that cable with it; one without brings none.
+        val withCable = Catalog.antennas.first { it.catalogKey == "n9tax-dual-16" }
+        assertEquals(Feedline.RG58, Catalog.integratedCable(withCable)!!.first)
+        assertEquals(16 * 0.3048, Catalog.integratedCable(withCable)!!.second, 1e-9)
+        assertNull(Catalog.integratedCable(Catalog.antennas.first { it.catalogKey == "n9tax-dual" }))
+    }
+
+    @Test
     fun `team locations pasted from a chat become named places`() {
         val text = """
             Alex: 38.2527, -85.7585

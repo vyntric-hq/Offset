@@ -143,6 +143,28 @@ class CoverageTest {
     }
 
     @Test
+    fun `a blocked path names its highest ridge and counts every ridge`() {
+        val a = louisville
+        val b = Earth.destination(a, 90.0, 20_000.0)
+        // A 150 m ridge mid path, and a 50 m one about 350 m from the far end where the Fresnel
+        // zone is narrow: the short one cuts a larger share of the zone, but the tall one is the
+        // ridge a reader sees on the chart.
+        val ridges = Terrain { _, lon -> if (lon in -85.65..-85.64) 300.0 else if (lon in -85.536..-85.534) 200.0 else 150.0 }
+        val g = PathCheck.of(ridges, freeSpace, a, handheld, b, handheld, 146.0, stepM = 50.0).geometry
+        assertEquals(Clearance.BLOCKED, g.clearance)
+        assertEquals(2, g.obstructions)
+        assertTrue("worst at ${g.worstDistanceM}", g.worstDistanceM in 9_000.0..11_000.0)
+        assertTrue(g.worstIntrusionM > 140)
+        // One ridge is one obstruction.
+        val one = PathCheck.of(Terrain { _, lon -> if (lon in -85.65..-85.64) 300.0 else 150.0 }, freeSpace, a, handheld, b, handheld, 146.0, 50.0).geometry
+        assertEquals(1, one.obstructions)
+        // A clear path has none.
+        val near = Earth.destination(a, 90.0, 3_000.0)
+        val clear = PathCheck.of(Terrain { _, _ -> 150.0 }, freeSpace, a, handheld.copy(heightM = 30.0), near, handheld.copy(heightM = 30.0), 146.0, 100.0).geometry
+        assertEquals(0, clear.obstructions)
+    }
+
+    @Test
     fun `radius grows with antenna height and stays within limits`() {
         val low = CoverageRequest.radiusFor(1.5, 1.5)
         val high = CoverageRequest.radiusFor(20.0, 30.0)

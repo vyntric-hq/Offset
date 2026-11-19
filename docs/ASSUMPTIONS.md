@@ -274,6 +274,17 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     antennas are lossy. Collinear figures are the makers' and are optimistic. Feedline loss per
     100 ft at 144 and 440 MHz is from manufacturer tables (RG-58 6.1/11.7, RG-8X 4.7/8.6, RG-213
     2.8/5.1, LMR-400 1.5/2.7 dB) and scaled as f^k between and beyond them.
+    Named antennas (added 2026-11-18): ZBM2 Industries states about 3.5 dBi for every Foul
+    Weather Whip and the Tough Whip. A quarter wave on a handheld cannot beat a half-wave
+    dipole, so the whips are modelled at 0 dBi on 70 cm, GMRS and the 1.25 m side -1 dBi, the
+    loaded 2 m side -2 dBi, the Stubby -6/-3 dBi, and the Tough Whip NMO as a quarter wave on a
+    roof (2.15 dBi). Practical Comms publishes no gain for its jungle antennas, quarter-wave
+    ground planes with drooping radials, taken as 2 dBi. N9TAX Labs publishes no gain for its
+    slim jims; a review measured just over 2 dBi on a 2 m unit, so all are 2.15 dBi. N9TAX's
+    store was closed when these were added, so its lineup comes from the archived catalog of
+    2026-10-22; its single-band slim jims are built to order and only 2 m and 70 cm are listed.
+    The integrated 10 ft and 16 ft cable versions do not say which coax they use; picking one
+    fills in that length of RG-58 as the feedline, which can be changed.
 87. **Beam pattern.** A Yagi's horizontal pattern is the usual parabolic main lobe (12 dB at
     one beamwidth off axis) floored at a 15 dB front to back ratio, with the beamwidth from its
     gain assuming a round main lobe. Elevation patterns are not modelled.

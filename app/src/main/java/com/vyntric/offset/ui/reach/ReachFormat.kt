@@ -13,7 +13,6 @@ import com.vyntric.offset.domain.reach.StationSetup
 import com.vyntric.offset.propagation.Clearance
 import com.vyntric.offset.propagation.PathGeometry
 import com.vyntric.offset.propagation.Verdict
-import com.vyntric.offset.propagation.itm.PropagationMode
 import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.ui.theme.OffsetTheme
 import java.util.Locale
@@ -145,19 +144,17 @@ object ReachFmt {
         height(setup.station.heightM, units),
     ).joinToString(" · ")
 
-    fun mode(m: PropagationMode) = when (m) {
-        PropagationMode.LINE_OF_SIGHT -> "line of sight"
-        PropagationMode.DIFFRACTION -> "over terrain (diffraction)"
-        PropagationMode.TROPOSCATTER -> "troposcatter"
-    }
-
     /** One sentence about what the terrain does to the path. */
     fun clearance(g: PathGeometry, units: Units): String {
         val at = distance(g.worstDistanceM, units)
         return when (g.clearance) {
             Clearance.CLEAR -> "Clear line of sight, with the Fresnel zone open."
             Clearance.GRAZING -> "Line of sight, but terrain $at out grazes the signal path."
-            Clearance.BLOCKED -> "Terrain $at out blocks the line of sight by ${height(g.worstIntrusionM, units)}. The signal has to bend over it."
+            Clearance.BLOCKED -> if (g.obstructions <= 1) {
+                "Terrain $at out blocks the line of sight by ${height(g.worstIntrusionM, units)}. The signal has to bend over it."
+            } else {
+                "Terrain blocks the line of sight in ${g.obstructions} places. The highest, $at out, rises ${height(g.worstIntrusionM, units)} above it. The signal has to bend over them."
+            }
         }
     }
 }

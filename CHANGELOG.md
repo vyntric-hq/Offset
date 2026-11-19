@@ -7,6 +7,21 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-18
+
+### Added
+- Reach's antenna catalog lists the ZBM2 Industries Foul Weather Whip V2 (2 m/70 cm, 1.25 m/70 cm,
+  70 cm 7 in, GMRS/MURS, GMRS 6 in), Stubby and Tough Whip NMO; the Practical Comms Jungle Antenna
+  (2 m/70 cm, GMRS, 220 MHz); and the N9TAX Labs slim jims (2 m/70 cm and MURS/GMRS, standard or
+  with 10 ft or 16 ft cable, and single band 2 m or 70 cm). Gains are realistic figures rather
+  than advertised ones; see docs/ASSUMPTIONS.md.
+
+### Fixed
+- A link card no longer says "Mainly line of sight" for a path a mountain blocks. That label was
+  the terrain model's internal category, not what the terrain does, so it is gone.
+- On a path several ridges block, the card points at the highest ridge, the one the chart shows,
+  and says how many places block the line of sight.
+
 ## [0.4.0] - 2026-11-18
 
 ### Added

@@ -30,10 +30,16 @@ class PathGeometry(
     val endAntennaM: Double,
     /** First Fresnel zone radius at each sample. */
     val fresnelM: DoubleArray,
-    /** Sample where the terrain comes closest to (or furthest through) the line of sight. */
+    /**
+     * The sample to point at: on a blocked path the highest point above the line of sight, so
+     * the chart and the sentence name the ridge a reader sees; otherwise where the terrain comes
+     * closest to the line, as a share of the Fresnel zone.
+     */
     val worstIndex: Int,
-    /** Clearance at [worstIndex] as a fraction of the first Fresnel zone (negative: blocked). */
+    /** The smallest clearance anywhere as a fraction of the first Fresnel zone (negative: blocked). */
     val worstFresnelRatio: Double,
+    /** How many separate stretches of terrain rise through the line of sight. */
+    val obstructions: Int,
 ) {
     val clearance: Clearance
         get() = when {
@@ -64,15 +70,27 @@ class PathGeometry(
             }
             val a = e[0] + startHeightM
             val b = e[n] + endHeightM
-            var worst = -1
+            var closest = -1
             var worstRatio = Double.POSITIVE_INFINITY
+            var highest = -1
+            var highestIntrusion = 0.0
+            var obstructions = 0
+            var inside = false
             for (i in 1 until n) {
                 val los = a + (b - a) * i / n
-                val ratio = (los - apparent[i]) / fresnel[i].coerceAtLeast(1e-6)
-                if (ratio < worstRatio) { worstRatio = ratio; worst = i }
+                val intrusion = apparent[i] - los
+                val ratio = -intrusion / fresnel[i].coerceAtLeast(1e-6)
+                if (ratio < worstRatio) { worstRatio = ratio; closest = i }
+                if (intrusion > highestIntrusion) { highestIntrusion = intrusion; highest = i }
+                if (intrusion > 0 && !inside) obstructions++
+                inside = intrusion > 0
             }
-            if (worst < 0) { worst = n / 2; worstRatio = Double.POSITIVE_INFINITY }
-            return PathGeometry(profile, apparent, a, b, fresnel, worst, worstRatio)
+            val worst = when {
+                highest >= 0 -> highest
+                closest >= 0 -> closest
+                else -> { worstRatio = Double.POSITIVE_INFINITY; n / 2 }
+            }
+            return PathGeometry(profile, apparent, a, b, fresnel, worst, worstRatio, obstructions)
         }
     }
 }

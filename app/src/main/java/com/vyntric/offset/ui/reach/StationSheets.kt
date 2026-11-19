@@ -123,6 +123,19 @@ fun StationEditorSheet(
     var heightText by remember { mutableStateOf(existing?.let { ReachFmt.heightInput(it.heightM, units) }.orEmpty()) }
     var feedline by remember { mutableStateOf(existing?.feedline) }
     var feedText by remember { mutableStateOf(existing?.takeIf { it.feedlineM > 0 }?.let { ReachFmt.heightInput(it.feedlineM, units) }.orEmpty()) }
+
+    /**
+     * Changes the antenna. An antenna sold with its own cable brings that cable as the feedline,
+     * and takes it away again when swapped out, unless the user has changed the cable since.
+     */
+    fun swapAntenna(next: Antenna?) {
+        if (next == antenna) return
+        antenna?.let(Catalog::integratedCable)?.let { (line, m) ->
+            if (feedline == line && feedText == ReachFmt.heightInput(m, units)) { feedline = null; feedText = "" }
+        }
+        antenna = next
+        next?.let(Catalog::integratedCable)?.let { (line, m) -> feedline = line; feedText = ReachFmt.heightInput(m, units) }
+    }
     var bearing by remember { mutableStateOf((existing?.bearingDeg ?: 0.0).toFloat()) }
     var fixed by remember { mutableStateOf(existing?.location as? StationLocation.Fixed) }
     var fixedText by remember { mutableStateOf(fixed?.let { String.format(Locale.US, "%.5f, %.5f", it.latitude, it.longitude) }.orEmpty()) }
@@ -145,14 +158,14 @@ fun StationEditorSheet(
                 radio = r
                 watts = r.levels.firstOrNull()
                 if (heightText.isBlank()) heightText = ReachFmt.heightInput(Catalog.defaultHeightM(r), units)
-                if (antenna?.let { a -> r.bands.none { a.covers(it) } } != false) antenna = null
+                if (antenna?.let { a -> r.bands.none { a.covers(it) } } != false) swapAntenna(null)
                 if (name.isBlank()) name = r.name.substringAfter(' ').ifBlank { r.name }
                 page = if (antenna == null) EditorPage.ANTENNA else EditorPage.FORM
             }, onCustom = { page = EditorPage.CUSTOM_RADIO })
-            EditorPage.ANTENNA -> AntennaPicker(inventory, radio, antenna, onPick = { antenna = it; page = EditorPage.FORM },
+            EditorPage.ANTENNA -> AntennaPicker(inventory, radio, antenna, onPick = { swapAntenna(it); page = EditorPage.FORM },
                 onCustom = { page = EditorPage.CUSTOM_ANTENNA })
             EditorPage.CUSTOM_RADIO -> CustomRadio { r -> radio = r; watts = r.levels.firstOrNull(); page = EditorPage.ANTENNA }
-            EditorPage.CUSTOM_ANTENNA -> CustomAntenna { a -> antenna = a; page = EditorPage.FORM }
+            EditorPage.CUSTOM_ANTENNA -> CustomAntenna { a -> swapAntenna(a); page = EditorPage.FORM }
             EditorPage.FORM -> {
                 InsetSection(header = "Name") {
                     cell { TextFieldRow("Name", name, { name = it.take(40) }, placeholder = "Truck, Home, Go-kit") }

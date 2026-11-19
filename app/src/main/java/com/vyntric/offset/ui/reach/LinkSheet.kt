@@ -84,7 +84,6 @@ fun LinkSheet(
         InsetSection(header = "Path") {
             if (check.pathLoss.modelled) {
                 cell { DetailRow("Path loss", String.format(Locale.US, "%.0f dB", check.pathLoss.lossDb)) }
-                cell { DetailRow("Mainly", ReachFmt.mode(check.pathLoss.mode)) }
             } else {
                 cell { DetailRow("Path loss", "Beyond the model's range") }
             }
