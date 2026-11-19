@@ -221,7 +221,7 @@ private fun Outcome(outcome: WriteRadio.Outcome, onOpen: (Long) -> Unit, onDone:
     val colors = OffsetTheme.colors
     val (icon, tint, title, body) = when (outcome) {
         is WriteRadio.Outcome.Verified -> Quad(Icons.Rounded.CheckCircle, colors.success, "Written and verified",
-            "${outcome.blocksWritten} memory blocks written and read back correctly. " +
+            "${outcome.blocksWritten} memory block${if (outcome.blocksWritten == 1) "" else "s"} written and read back correctly. " +
                 (outcome.saveError ?: "The result is saved in Images, and a backup of the radio from before the write is there too."))
         is WriteRadio.Outcome.Mismatch -> Quad(Icons.Rounded.Warning, colors.warning, "Verification found differences",
             "Channels ${outcome.channels.joinToString(", ")} did not read back as written. Check them on the radio. " +

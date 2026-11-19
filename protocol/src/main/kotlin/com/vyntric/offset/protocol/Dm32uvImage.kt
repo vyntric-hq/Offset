@@ -182,8 +182,8 @@ object Dm32uvProfile : RadioProfile {
     override val uppercaseNames = false
 
     override fun watts(power: Power): Double = when (power) {
-        Power.HIGH -> 5.0
+        Power.VERY_HIGH, Power.HIGH -> 5.0
         Power.MID -> 2.5
-        Power.LOW -> 1.0
+        Power.LOW, Power.VERY_LOW, Power.ZERO -> 1.0
     }
 }

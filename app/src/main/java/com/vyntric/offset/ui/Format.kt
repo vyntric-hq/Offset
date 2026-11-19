@@ -10,6 +10,7 @@ import com.vyntric.offset.domain.Repeater
 import com.vyntric.offset.domain.RepeaterSource
 import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.Duplex
+import com.vyntric.offset.protocol.Modulation
 import com.vyntric.offset.protocol.Squelch
 import com.vyntric.offset.protocol.ToneMode
 import com.vyntric.offset.protocol.Tones
@@ -56,12 +57,15 @@ object Fmt {
         ToneMode.CROSS -> "TX ${squelch(tx)}, RX ${squelch(rx)}"
     }
 
+    /** One line about a channel: mode when not FM, offset, tones, power, then anything unusual. */
     fun channelSummary(ch: Channel): String = listOfNotNull(
-        duplex(ch),
+        if (ch.mode == Modulation.FM) null else ch.mode.label,
+        if (ch.mode.receiveOnly) "Receive only" else duplex(ch),
         tones(ch.txSquelch, ch.rxSquelch),
-        ch.power.label,
+        if (ch.duplex == Duplex.OFF) null else "${ch.power.label} power",
         if (ch.wide) null else "Narrow",
         if (ch.scanAdd) null else "No scan",
+        ch.options["nicfw.groups"]?.takeIf { it.isNotEmpty() }?.let { "Groups ${it.toList().joinToString(" ")}" },
     ).joinToString(" · ")
 
     fun repeaterSummary(r: Repeater): String = listOfNotNull(

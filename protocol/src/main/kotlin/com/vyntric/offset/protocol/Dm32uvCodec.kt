@@ -102,7 +102,7 @@ internal object Dm32uvCodec {
         if (tx == null) r.fill(0xFF.toByte(), TX, TX + 4) else Bcd.encodeLittleEndian(tx / 10, r, TX, 4)
         var tp = r.u8(TYPE_POWER)
         if ((tp ushr 4) != 0 && (tp ushr 4) != 2) tp = tp and 0x0F
-        tp = (tp and 0b1111_1001) or (POWERS.indexOf(channel.power) shl 1)
+        tp = (tp and 0b1111_1001) or (POWERS.indexOf(Dm32uvProfile.nearestPower(channel.power)) shl 1)
         r[TYPE_POWER] = tp.toByte()
         r[WIDE] = ((r.u8(WIDE) and 0x7F) or (if (channel.wide) 0x80 else 0)).toByte()
         var step = r.u8(STEP_PTT) ushr 4

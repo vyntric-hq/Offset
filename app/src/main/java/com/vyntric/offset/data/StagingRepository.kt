@@ -10,6 +10,7 @@ import com.vyntric.offset.domain.ChannelOrigin
 import com.vyntric.offset.domain.StagedChannel
 import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.Duplex
+import com.vyntric.offset.protocol.Modulation
 import com.vyntric.offset.protocol.Power
 import com.vyntric.offset.protocol.PttId
 import com.vyntric.offset.protocol.Squelch
@@ -79,13 +80,17 @@ class StagingRepository(private val dao: StagingDao, private val clock: Clock) {
         val name: String,
         val slot: Int = -1,
         val digital: String? = null,
+        /** Null in lists saved before 0.6.0, which did not record modes. */
+        val mode: String? = null,
+        val options: Map<String, String> = emptyMap(),
     )
 
     private fun StagedChannel.toDto() = StagedDto(
         key, origin.name, note, channel.rxFreqHz, channel.duplex.name, channel.offsetHz,
         squelchToString(channel.txSquelch), squelchToString(channel.rxSquelch), channel.power.name,
         channel.wide, channel.scanAdd, channel.busyLockout, channel.pttId.name, channel.pttIdCode, channel.name, slot,
-        channel.digitalMode,
+        // A channel whose mode is still unknown keeps saving without one until a read settles it.
+        channel.digitalMode, if (modeUnknown) null else channel.mode.name, channel.options,
     )
 
     private fun StagedDto.toDomain() = StagedChannel(
@@ -95,10 +100,13 @@ class StagingRepository(private val dao: StagingDao, private val clock: Clock) {
             txSquelch = squelchFromString(tx), rxSquelch = squelchFromString(rxTone), power = Power.valueOf(power),
             wide = wide, scanAdd = scan, busyLockout = bcl, pttId = PttId.valueOf(pttId), pttIdCode = pttIdCode, name = name,
             digitalMode = digital,
+            mode = mode?.let { runCatching { Modulation.valueOf(it) }.getOrNull() } ?: Modulation.FM,
+            options = options,
         ),
         origin = runCatching { ChannelOrigin.valueOf(origin) }.getOrDefault(ChannelOrigin.MANUAL),
         note = note,
         slot = slot,
+        modeUnknown = mode == null,
     )
 
     private fun squelchToString(s: Squelch) = SquelchText.format(s)

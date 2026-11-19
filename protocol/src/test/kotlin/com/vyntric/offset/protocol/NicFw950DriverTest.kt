@@ -61,11 +61,16 @@ class NicFw950DriverTest {
         assertEquals(Power.LOW, pmr.power)
         assertEquals(Duplex.OFF, sample.channel(4)!!.duplex)
         val six = sample.channel(5)!!
-        assertEquals(Power.HIGH, six.power)
+        assertEquals(Power.VERY_HIGH, six.power)
+        assertEquals("AC", six.options["nicfw.groups"])
         assertTrue(six.busyLockout)
         assertEquals(PttId.BOTH, six.pttId)
         assertNull("a deleted slot with a leftover name is empty", sample.channel(7))
-        assertEquals(6, sample.usedChannelCount)
+        val hf = sample.channel(6)!!
+        assertEquals(Modulation.LSB, hf.mode)
+        assertEquals(Duplex.OFF, hf.duplex)
+        assertEquals("5", hf.options["nicfw.bandwidth"])
+        assertEquals(7, sample.usedChannelCount)
         assertTrue(sample.looksLikeNicFw950)
     }
 
@@ -82,8 +87,8 @@ class NicFw950DriverTest {
         val target = sample.withChannels(sample.channels().toMutableList().also { it[5] = it[5]!!.copy(name = "Renamed") })
         val bytes = target.bytes()
         assertEquals("very high power survives", 6, bytes[six + 21].toInt())
-        assertEquals(1, bytes[six + 8].toInt())
-        assertEquals(3, bytes[six + 9].toInt())
+        assertEquals("groups survive", 3, bytes[six + 8].toInt())
+        assertEquals(1, bytes[six + 9].toInt())
         assertEquals("Renamed", target.channel(5)!!.name)
         assertEquals(listOf(5), sample.mismatchedChannels(target))
         assertTrue(sample.differsOnlyInWritableRegions(target))

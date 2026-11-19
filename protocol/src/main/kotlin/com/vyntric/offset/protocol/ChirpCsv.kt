@@ -57,7 +57,7 @@ object ChirpCsv {
                 pol,
                 Tones.formatDcs(rxDtcs),
                 cross,
-                ch.digitalMode ?: if (ch.wide) "FM" else "NFM",
+                ch.digitalMode ?: modeColumn(ch),
                 "5.00",
                 if (ch.scanAdd) "" else "S",
                 String.format(Locale.US, "%.1fW", model.watts(ch.power)),
@@ -84,10 +84,10 @@ object ChirpCsv {
                 val freq = parseFreq(get("Frequency")) ?: throw IllegalArgumentException("bad frequency")
                 if (freq == 0L) return@forEachIndexed
                 val mode = get("Mode")
-                if (mode.isNotEmpty() && mode.uppercase() !in ANALOG_MODES) {
-                    throw IllegalArgumentException("$mode channels are not imported; Offset programs analog FM channels only")
-                }
-                val duplex = Duplex.fromChirp(get("Duplex"))
+                val modulation = if (mode.isEmpty()) Modulation.FM else MODES[mode.uppercase()]
+                    ?: throw IllegalArgumentException("$mode channels are not imported; Offset programs analog channels only")
+                // CHIRP lists SSB and CW memories with a duplex; the HF receiver only listens.
+                val duplex = if (modulation.receiveOnly) Duplex.OFF else Duplex.fromChirp(get("Duplex"))
                 val offset = parseFreq(get("Offset")) ?: 0L
                 val (tx, rx) = squelchFrom(
                     get("Tone"), get("rToneFreq"), get("cToneFreq"), get("DtcsCode"),
@@ -100,9 +100,10 @@ object ChirpCsv {
                     txSquelch = tx,
                     rxSquelch = rx,
                     power = parsePower(get("Power"), model),
-                    wide = !get("Mode").equals("NFM", ignoreCase = true),
+                    wide = mode.uppercase() !in NARROW_MODES,
                     scanAdd = !get("Skip").equals("S", ignoreCase = true),
                     name = get("Name"),
+                    mode = modulation,
                 )
                 val known = HEADER.map { it.lowercase() }.toSet()
                 val extras = header.withIndex()
@@ -147,12 +148,30 @@ object ChirpCsv {
         Power.entries.firstOrNull { it.label.equals(v, true) || it.name.equals(v, true) }?.let { return model.nearestPower(it) }
         if (v.equals("Mid", true) || v.equals("Middle", true)) return model.nearestPower(Power.MID)
         val watts = Regex("^([0-9.]+)\\s*[Ww]?$").find(v)?.groupValues?.get(1)?.toDoubleOrNull() ?: return Power.HIGH
-        // The level with the nearest nominal wattage; a tie goes to the higher level.
-        return model.powerLevels.minWith(compareBy<Power>({ kotlin.math.abs(model.watts(it) - watts) }, { -model.watts(it) }))
+        // The level with the nearest nominal wattage; a tie goes to the higher wattage, then to
+        // the more ordinary level (high rather than nicFW's very high at the same nominal watts).
+        return model.powerLevels.minWith(
+            compareBy<Power>({ kotlin.math.abs(model.watts(it) - watts) }, { -model.watts(it) }, { -it.ordinal }),
+        )
     }
 
-    /** CHIRP modes Offset imports as analog channels. */
-    private val ANALOG_MODES = setOf("FM", "NFM")
+    /** CHIRP modes Offset imports as analog channels, and the mode each becomes. */
+    private val MODES: Map<String, Modulation> = mapOf(
+        "FM" to Modulation.FM, "NFM" to Modulation.FM,
+        "AM" to Modulation.AM, "NAM" to Modulation.AM,
+        "DSB" to Modulation.DSB, "AUTO" to Modulation.AUTO, "WFM" to Modulation.WFM,
+        "LSB" to Modulation.LSB, "USB" to Modulation.USB,
+        "CW" to Modulation.CW, "NCW" to Modulation.CW, "CWR" to Modulation.CW, "NCWR" to Modulation.CW,
+    )
+
+    private val NARROW_MODES = setOf("NFM", "NAM", "NCW", "NCWR")
+
+    /** CHIRP's Mode for [ch]: FM and AM say narrow as NFM and NAM. */
+    private fun modeColumn(ch: Channel): String = when (ch.mode) {
+        Modulation.FM -> if (ch.wide) "FM" else "NFM"
+        Modulation.AM -> if (ch.wide) "AM" else "NAM"
+        else -> ch.mode.chirp
+    }
 
     /** CHIRP's format_freq: "%i.%06i" of MHz. */
     fun formatFreq(hz: Long): String = String.format(Locale.US, "%d.%06d", hz / 1_000_000, hz % 1_000_000)

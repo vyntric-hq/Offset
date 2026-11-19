@@ -7,9 +7,10 @@ package com.vyntric.offset.protocol
 /** Checks a channel against the limits of a radio model. */
 object ChannelValidator {
 
-    enum class Field { FREQUENCY, OFFSET, TX_FREQUENCY, NAME, TX_TONE, RX_TONE, POWER, PTT_ID_CODE }
+    enum class Field { FREQUENCY, OFFSET, TX_FREQUENCY, NAME, TX_TONE, RX_TONE, POWER, PTT_ID_CODE, MODE, OPTION }
 
-    data class Problem(val field: Field, val message: String)
+    /** [optionKey] names the [ChannelOption] for a [Field.OPTION] problem. */
+    data class Problem(val field: Field, val message: String, val optionKey: String? = null)
 
     /** Largest shift CHIRP still treats as a +/- offset; anything larger is a split. */
     const val MAX_OFFSET_HZ = 70_000_000L
@@ -19,7 +20,9 @@ object ChannelValidator {
         if (!model.inBand(channel.rxFreqHz)) {
             problems += Problem(Field.FREQUENCY, "Receive frequency must be within ${bands(model)}.")
         }
-        if (channel.rxFreqHz % 2_500L != 0L && channel.rxFreqHz % 6_250L != 0L) {
+        if (model.fineTuning) {
+            if (channel.rxFreqHz % 10L != 0L) problems += Problem(Field.FREQUENCY, "Frequency must be a multiple of 10 Hz.")
+        } else if (channel.rxFreqHz % 2_500L != 0L && channel.rxFreqHz % 6_250L != 0L) {
             problems += Problem(Field.FREQUENCY, "Frequency must be a multiple of 2.5 kHz or 6.25 kHz.")
         }
         when (channel.duplex) {
@@ -48,7 +51,18 @@ object ChannelValidator {
         if (channel.power !in model.powerLevels) {
             problems += Problem(Field.POWER, "${model.displayName} has no ${channel.power.label} power level.")
         }
-        if (channel.pttIdCode !in 0..14) problems += Problem(Field.PTT_ID_CODE, "PTT-ID code must be 1 to 15.")
+        if (model.pttIdCodes > 0 && channel.pttIdCode !in 0 until model.pttIdCodes) {
+            problems += Problem(Field.PTT_ID_CODE, "PTT-ID code must be 1 to ${model.pttIdCodes}.")
+        }
+        if (channel.digitalMode == null && channel.mode !in model.modes) {
+            problems += Problem(Field.MODE, "${model.displayName} has no ${channel.mode.label} mode.")
+        } else if (channel.mode.receiveOnly && channel.duplex != Duplex.OFF) {
+            problems += Problem(Field.MODE, "${channel.mode.label} only receives. Set transmit to off.")
+        }
+        for (option in model.channelOptions) {
+            val value = channel.options[option.key] ?: continue
+            option.check(value)?.let { problems += Problem(Field.OPTION, it, option.key) }
+        }
         return problems
     }
 

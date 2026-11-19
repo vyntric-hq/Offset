@@ -25,8 +25,33 @@ enum class Duplex(val chirp: String) {
     }
 }
 
-/** Power setting. Dual-power radios use HIGH and LOW; tri-power radios add MID. */
-enum class Power(val label: String) { HIGH("High"), MID("Med"), LOW("Low") }
+/**
+ * Power setting, highest first. Dual-power radios use HIGH and LOW; tri-power radios add MID.
+ * nicFW950 adds VERY_HIGH, VERY_LOW and ZERO (a transmit cycle with almost no output, for
+ * testing PTT-ID and roger beeps). Each profile lists the levels its radio has.
+ */
+enum class Power(val label: String) {
+    VERY_HIGH("Very high"), HIGH("High"), MID("Med"), LOW("Low"), VERY_LOW("Very low"), ZERO("Zero"),
+}
+
+/**
+ * How a channel is received (and sent). [chirp] is CHIRP's Mode column for it. A [receiveOnly]
+ * mode is one the radio only listens with (nicFW's second receiver for HF and broadcast FM), so
+ * such a channel has transmit off. Each profile lists the modes its radio stores.
+ */
+enum class Modulation(val label: String, val chirp: String, val receiveOnly: Boolean = false) {
+    FM("FM", "FM"),
+    AM("AM", "AM"),
+    /** Double sideband, nicFW's AM without the carrier. CHIRP has no DSB; it exports as AM. */
+    DSB("DSB", "AM"),
+    /** nicFW: the mode its band plan sets for the frequency. */
+    AUTO("Auto", "Auto"),
+    WFM("Broadcast FM", "WFM", receiveOnly = true),
+    TUNER_AM("AM (HF receiver)", "AM", receiveOnly = true),
+    LSB("LSB", "LSB", receiveOnly = true),
+    USB("USB", "USB", receiveOnly = true),
+    CW("CW", "CW", receiveOnly = true),
+}
 
 enum class PttId(val label: String) { OFF("Off"), BOT("BOT"), EOT("EOT"), BOTH("Both") }
 
@@ -55,6 +80,14 @@ data class Channel(
      * example "DMR"). Such a channel is shown and kept byte for byte, never edited.
      */
     val digitalMode: String? = null,
+    val mode: Modulation = Modulation.FM,
+    /**
+     * Settings only some radios store in a channel (scan groups, scrambler, clarifier), keyed by
+     * [ChannelOption.key], as declared by the radio's [RadioProfile.channelOptions]. A key that is
+     * missing means "keep what the slot already holds" (or the radio's default in an empty slot),
+     * so a channel imported from a file never wipes settings Offset was not told about.
+     */
+    val options: Map<String, String> = emptyMap(),
 ) {
     /** Transmit frequency in hertz, or null when transmit is inhibited. */
     val txFreqHz: Long?

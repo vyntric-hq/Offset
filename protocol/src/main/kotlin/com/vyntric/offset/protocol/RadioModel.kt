@@ -63,8 +63,8 @@ enum class RadioModel(
     override val uppercaseNames: Boolean get() = true
 
     override fun watts(power: Power): Double = when {
-        triPower -> when (power) { Power.HIGH -> 8.0; Power.MID -> 4.0; Power.LOW -> 1.0 }
-        else -> when (power) { Power.HIGH, Power.MID -> 4.0; Power.LOW -> 1.0 }
+        triPower -> when (power) { Power.VERY_HIGH, Power.HIGH -> 8.0; Power.MID -> 4.0; else -> 1.0 }
+        else -> when (power) { Power.VERY_HIGH, Power.HIGH, Power.MID -> 4.0; else -> 1.0 }
     }
 
     override fun inBand(freqHz: Long): Boolean = freqHz in vhfHz || freqHz in uhfHz

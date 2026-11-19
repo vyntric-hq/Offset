@@ -103,10 +103,20 @@ object Rt950ProProfile : RadioProfile {
     override val nameCharset = RadioProfile.ASCII
     override val uppercaseNames = false
 
+    /** FM, or AM receive (airband); the AM bit sets how the channel is received. */
+    override val modes: List<Modulation> = listOf(Modulation.FM, Modulation.AM)
+
+    override val channelOptions: List<ChannelOption> get() = Rt950ProCodec.OPTIONS
+
+    /** Channels pick a signalling group (an option) rather than a UV-5R style PTT-ID code. */
+    override val pttIdCodes = 0
+
     /** Published 10 W / 5 W / 1 W (the radio's listing and Nathan Barguss's CHIRP driver). */
     override fun watts(power: Power): Double = when (power) {
-        Power.HIGH -> 10.0
+        Power.VERY_HIGH, Power.HIGH -> 10.0
         Power.MID -> 5.0
         Power.LOW -> 1.0
+        Power.VERY_LOW -> 0.5
+        Power.ZERO -> 0.0
     }
 }

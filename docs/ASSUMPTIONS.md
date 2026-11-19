@@ -329,12 +329,12 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     write before the commit, and the VFO or unused bytes sharing the first and last blocks are
     sent back as the radio holds them at that moment. The
     radio stays at 38400 baud; the RMS's faster speeds are optional.
-99. **Power:** Offset writes Low 3, Medium 4 and High 5 of nicFW's seven levels and reads Zero to
-    Low as Low and Very High as High; an unchanged channel keeps its byte. Transmit off is "N/T"
+99. **Power:** (0.6.0: all six transmit levels are read and written, see 109.) An unchanged
+    channel keeps its byte. Transmit off is "N/T"
     (0) with the transmit frequency kept. Watts shown are the stock firmware's 10/5/1 W because
     nicFW's levels depend on its power calibration. **(hardware)**
-100. **New channels start "Auto" modulation** (the band plan's choice, FM on 2 m and 70 cm), with
-    no groups, clarifier or scrambler. nicFW has no per channel scan flag (it scans groups), so
+100. **New channels start with the mode the channel says** (FM unless set; 0.5.0 used "Auto"),
+    with no groups, clarifier or scrambler. nicFW has no per channel scan flag (it scans groups), so
     the channel editor hides "Scan add" for this radio and every channel reads as scanned.
 101. **Channels keep their numbers on nicFW950** (as on the DM-32UV): reordering is off, and new
     channels go into free slots, because each record carries groups and other settings Offset
@@ -345,3 +345,37 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     attempts a second apart, before reading back. **(hardware)**
 104. **The stock RT-950 Pro handshake now waits 3 seconds,** not 1.5, matching the timeout floor in
     Nathan Barguss's transport that the CHIRP module shown working on hardware uses.
+
+## Every channel feature (0.6.0)
+
+105. **Channel options are declared per radio** (`RadioProfile.channelOptions`) and travel as a
+    string map on the channel. A channel that does not carry an option (one from a CHIRP file, a
+    repeater list or another radio) keeps the slot's bytes for it, so nothing Offset was not told
+    about is changed; a new slot gets the radio's own default, as its programming app creates one.
+106. **Stock RT-950 Pro:** AM receive is bit 0 of byte 15, signalling group the low nibble of byte
+    12 (0 to 15, numbered as CHIRP's module numbers them), scrambler the high nibble of byte 14
+    (the menu offers off and 1 to 8; any nibble is kept), encryption bits 5 and 4 of byte 15 (off,
+    types 1 to 3), learn frequency hopping bit 7, and the hopping code bytes 16 to 19 (six hex
+    digits, last pair first, then `A0`; `FF FF FF FF` for none), all from Nathan Barguss's
+    `channel.py`. What each signalling group, scrambler code and encryption type does on air is
+    the radio's business. **(hardware)**
+107. **nicFW950 values are the NicFW950 RMS app's:** modulation 0 to 8 (FM, AM, DSB, Auto, then
+    the HF receiver's WFM, AM, LSB, USB, CW), bandwidth 0 to 7 (wide, narrow, auto, then 6, 4, 3,
+    2, 1 kHz), power 0 to 6, scrambler 0 to 20 (off, 2600 to 4500 Hz), clarifier a signed 16 bit
+    value in 10 Hz units, groups four bytes 1 to 26. The RMS packs groups with the first letter
+    in the highest used byte; Offset writes them that way and reads them in any order.
+108. **The HF receiver's modes only receive:** a channel in them must have transmit off, and the
+    editor turns it off. nicFW channels accept 150 kHz to 580 MHz in 10 Hz steps; nicFW checks
+    transmit against its own band plan. **(hardware)**
+109. **Power levels:** Very high, High, Medium, Low, Very low and Zero map to nicFW bytes 6 to 1. A
+    level a radio lacks becomes the nearest it has, the lower one on a tie (Very high is High on
+    a UV-5R, Medium is Low on a two level radio). CHIRP export uses nominal watts: the stock
+    RT-950 Pro's 10, 5 and 1 W, with Very high as 10, Very low as 0.5 and Zero as 0.
+110. **CHIRP CSV:** Mode imports FM, NFM, AM, NAM, WFM, USB, LSB, CW (and its variants), DSB and
+    Auto; digital modes are still refused. CHIRP has no DSB, so DSB and the HF receiver's AM
+    export as AM. Radio options do not travel in CHIRP files.
+111. **Scramblers, encryption and frequency hopping are editable** with a note that US rules
+    forbid obscuring meaning on amateur and GMRS frequencies; Offset does not block them.
+112. **Staging lists saved by 0.5.0 have no modes.** Their channels take the mode, and the nicFW
+    power level 0.5.0 showed as High or Low, from the radio's channel in the same slot at the next
+    read, which every write needs first; an untouched AM or HF channel is not written back as FM.

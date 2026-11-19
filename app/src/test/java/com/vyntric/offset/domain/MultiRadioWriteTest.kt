@@ -59,7 +59,7 @@ class MultiRadioWriteTest {
             WriteRadio.Request(WriteRadio.Content.Channels(slots), "Trip", read.image.identity, Rt950ProDriver),
         ) {}
         assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Verified)
-        assertEquals(repeater, sim.currentImage().channel(10))
+        assertEquals(repeater, sim.currentImage().channel(10)?.copy(options = emptyMap()))
         // The AM airband channel the radio held is written back untouched.
         assertEquals(read.image.channel(5), sim.currentImage().channel(5))
     }
@@ -84,7 +84,7 @@ class MultiRadioWriteTest {
         ) {}
         assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Verified)
         assertEquals(1, sim.reboots)
-        assertEquals(repeater, sim.currentImage().channel(10))
+        assertEquals(repeater, sim.currentImage().channel(10)?.copy(options = emptyMap()))
         // Channel 6's "very high" power and groups, which Offset does not model, are untouched.
         assertEquals(read.image.channel(5), sim.currentImage().channel(5))
         assertTrue(read.image.differsOnlyInWritableRegions(sim.currentImage()))

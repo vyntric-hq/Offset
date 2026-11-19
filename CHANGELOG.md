@@ -7,6 +7,35 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-19
+
+### Added
+
+- Every setting the RT-950 Pro stores in a channel can be edited, on both firmwares.
+  - Stock firmware: AM receive, signalling group, scrambler, encryption and frequency hopping
+    (learn and code).
+  - nicFW950: mode (FM, AM, DSB, Auto, and the HF receiver's broadcast FM, AM, LSB, USB and CW),
+    bandwidth including the HF filter widths, all six power levels, scan groups A to Z, clarifier,
+    reversed and scrambler. HF channels take 10 Hz steps and only receive.
+- The channel editor is organised into Mode, Offset, Tone, Transmit, Scan, Signalling, Privacy
+  and Advanced sections, showing only what the radio has. Scan groups are picked on an A to Z
+  grid; privacy features carry a note about the law.
+- Channel rows show the mode, receive only channels and nicFW scan groups.
+- CHIRP CSV files carry the mode (AM, NAM, WFM, USB, LSB, CW, Auto) both ways.
+
+### Changed
+
+- Menu rows show their value against the right edge.
+- A power level a radio lacks maps to the nearest it has, the lower one on a tie.
+
+### Fixed
+
+- The PTT-ID code row no longer appears for radios whose channels have no code (both RT-950 Pro
+  firmwares).
+- "1 memory block written" instead of "1 memory blocks".
+- A staging list saved by 0.5.0 takes each channel's mode (and nicFW's extra power levels) from
+  the radio at the next read, so writing it does not turn AM or HF channels into FM.
+
 ## [0.5.0] - 2026-11-19
 
 ### Added

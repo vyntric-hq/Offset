@@ -34,7 +34,7 @@ class ChannelCodecTest {
     }
 
     @Test fun `round trips all three power levels on a tri power radio`() {
-        for (p in Power.entries) {
+        for (p in listOf(Power.HIGH, Power.MID, Power.LOW)) {
             val ch = Channel(146_520_000, power = p)
             assertEquals(ch, roundTrip(f8hp, ch))
         }

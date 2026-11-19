@@ -44,7 +44,7 @@ screenshots use a simulated position in Denver and repeater data from Hearham.co
 | BF-F8HP | Baofeng BF-F8HP, UV-5R 8W, UV-5RTP, Retevis RT5 tri-power, GA-5S, UV-5XP, TI-F8+, UV-5R Pro, TS-T9+ | High, Med, Low |
 | DM-32UV | Baofeng DM-32UV (4000 channels) | High, Med, Low |
 | RT-950 Pro (experimental) | Radtel RT-950 Pro (960 channels) | High, Med, Low |
-| RT-950 Pro nicFW950 (experimental) | Radtel RT-950 Pro running nicFW950 (999 channels) | High, Med, Low |
+| RT-950 Pro nicFW950 (experimental) | Radtel RT-950 Pro running nicFW950 (999 channels) | Very high, High, Med, Low, Very low, Zero |
 
 Pick the radio type on the Radio tab before reading; each family has its own protocol. Within the
 UV-5R family the model is detected from the firmware string.
@@ -58,7 +58,8 @@ UV-5R family the model is detected from the firmware string.
 - **RT-950 Pro (experimental).** CHIRP has no driver. The protocol and channel layout come from
   community reverse engineering (credited below) that was tested on a radio, but Offset itself has
   not written to one yet. Only channel memory is written; settings, VFOs and APRS are never sent.
-  AM, frequency hopping and scrambler settings are kept as stored. The radio reportedly programs
+  Every channel setting can be edited: AM receive, signalling group, scrambler, encryption and
+  frequency hopping, alongside the usual ones. The radio reportedly programs
   through a CH340 cable; which plug it uses is not confirmed.
   Offset's driver matches the CHIRP module (Nathan Barguss's) that has been shown reading and
   writing the radio, byte for byte; Offset writes less (channels only).
@@ -67,8 +68,15 @@ UV-5R family the model is detected from the firmware string.
   than "RT-950 Pro". Built from nicsure's published documentation and checked against his
   programming app; not yet run on a radio by Offset. Only channel records are written, and only
   the blocks that change; VFOs, settings, groups' names, band plan and calibration are never
-  read or written. Groups, clarifier, scrambler and nicFW's extra power levels are kept as
-  stored. nicFW restarts the radio after a write. Offset does not flash firmware.
+  read or written. Every channel setting can be edited: mode (FM, AM, DSB, Auto, and the HF
+  receiver's broadcast FM, AM, LSB, USB and CW for receive only channels down to 150 kHz),
+  bandwidth, all six power levels, scan groups A to Z, clarifier, reversed and scrambler. nicFW
+  restarts the radio after a write. Offset does not flash firmware.
+
+The channel editor shows each radio's own settings in sections (Mode, Offset, Tone, Transmit,
+Scan, Signalling, Privacy, Advanced), and only the ones that radio stores. Radio settings (menus,
+keys, display) are never written. Scramblers, encryption and frequency hopping are editable;
+hiding what you say is not allowed on amateur or GMRS frequencies in the US.
 
 Bluetooth radios (UV-Pro, VR-N76) and programming digital channels are out of scope.
 

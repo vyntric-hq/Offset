@@ -147,7 +147,7 @@ class Rt950ProDriverTest {
 
     @Test fun `sample image holds a few channels and plausible settings`() {
         assertEquals(6, sample.usedChannelCount)
-        assertEquals(Channel(146_520_000, name = "CALLING"), sample.channel(0))
+        assertEquals(Channel(146_520_000, name = "CALLING"), sample.channel(0).plain())
         assertEquals(Duplex.OFF, sample.channel(5)!!.duplex)
         val vfo = sample.bytes().copyOfRange(Rt950ProImage.SEGMENTS[1].imageOffset, Rt950ProImage.SEGMENTS[1].imageOffset + 8)
         assertArrayEquals(byteArrayOf(1, 4, 6, 5, 2, 0, 0, 0), vfo)

@@ -20,6 +20,12 @@ data class StagedChannel(
     val origin: ChannelOrigin,
     val note: String = "",
     val slot: Int = 0,
+    /**
+     * Saved before Offset recorded modes (0.5.0 and earlier), so [Channel.mode] reads FM without
+     * knowing. The next read of the radio replaces it with the mode the radio holds in [slot]
+     * (see BuildStaging.adoptRadioModes), so an untouched AM channel is not written back as FM.
+     */
+    val modeUnknown: Boolean = false,
 )
 
 /** The [capacity] radio slots a staging list writes, empty where nothing is staged. */

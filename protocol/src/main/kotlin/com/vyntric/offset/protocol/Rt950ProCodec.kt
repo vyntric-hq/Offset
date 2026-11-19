@@ -16,25 +16,30 @@ import java.nio.charset.Charset
  *  4..7   tx frequency   same; all 00/FF = none
  *  8..9   rx tone        00 00 or FF FF off; second byte 00 = DCS table index 1..210
  * 10..11  tx tone        (105 normal codes, then the same 105 inverted); else CTCSS tenths, LE
- * 12      low nibble signalling group (not modeled)
+ * 12      low nibble signalling group (option rt950.signalling)
  * 13      low nibble PTT ID: 0 off, 1 BOT, 2 EOT, 3 both
- * 14      low nibble power (0 high, 1 medium, 2 low), high nibble scrambler (not modeled)
- * 15      bit7 learn FHSS, bit6 narrow, bits5-4 encryption, bit3 busy lockout, bit2 scan add,
- *         bit1 TX enabled, bit0 AM (FHSS, encryption and AM are not modeled)
- * 16..19  FHSS code (not modeled)
+ * 14      low nibble power (0 high, 1 medium, 2 low), high nibble scrambler (rt950.scrambler)
+ * 15      bit7 learn FHSS (rt950.fhssLearn), bit6 narrow, bits5-4 encryption (rt950.encryption),
+ *         bit3 busy lockout, bit2 scan add, bit1 TX enabled, bit0 AM receive (mode)
+ * 16..19  FHSS code: six hex digits, last pair first, then A0; FF FF FF FF for none (rt950.fhssCode)
  * 20..31  name, GB2312, FF padded
  * ```
  *
- * Encoding works on top of the slot's old record: a field Offset models is rewritten only when
- * its value changed, and every other bit (AM, FHSS, scrambler, encryption, signalling, a
- * Chinese name that was not edited) is kept. An empty slot starts from [TEMPLATE].
+ * Encoding works on top of the slot's old record: a field is rewritten only when its value
+ * changed, and an option the channel does not carry keeps the slot's bits (a Chinese name that
+ * was not edited survives the same way). An empty slot starts from [TEMPLATE].
  */
 object Rt950ProCodec {
     const val RECORD_SIZE = 32
     const val NAME_OFFSET = 20
     const val NAME_BYTES = 12
 
+    private const val FLAG_LEARN_FHSS = 0x80
     private const val FLAG_NARROW = 0x40
+    private const val ENCRYPTION_SHIFT = 4
+    private const val FLAG_AM = 0x01
+    private const val FHSS_AT = 16
+    private const val FHSS_MARK = 0xA0
     private const val FLAG_BUSY_LOCKOUT = 0x08
     private const val FLAG_SCAN_ADD = 0x04
     private const val FLAG_TX_ENABLED = 0x02
@@ -86,6 +91,14 @@ object Rt950ProCodec {
             busyLockout = flags and FLAG_BUSY_LOCKOUT != 0,
             pttId = PttId.entries.getOrElse(ptt) { PttId.OFF },
             name = decodeName(bytes, offset + NAME_OFFSET),
+            mode = if (flags and FLAG_AM != 0) Modulation.AM else Modulation.FM,
+            options = mapOf(
+                SIGNALLING.key to (bytes[offset + 12].toInt() and 0x0F).toString(),
+                SCRAMBLER.key to ((bytes[offset + 14].toInt() ushr 4) and 0x0F).toString(),
+                ENCRYPTION.key to ((flags ushr ENCRYPTION_SHIFT) and 0x03).toString(),
+                FHSS_LEARN.key to (flags and FLAG_LEARN_FHSS != 0).toString(),
+                FHSS_CODE.key to decodeFhss(bytes, offset + FHSS_AT),
+            ),
         )
     }
 
@@ -114,11 +127,21 @@ object Rt950ProCodec {
         if (old?.txSquelch != c.txSquelch) encodeSquelch(c.txSquelch, out, 10)
         if (old?.pttId != c.pttId) setLowNibble(out, 13, c.pttId.ordinal)
         if (old?.power != c.power) {
-            setLowNibble(out, 14, when (c.power) { Power.HIGH -> 0; Power.MID -> 1; Power.LOW -> 2 })
+            setLowNibble(out, 14, when (c.power) { Power.HIGH -> 0; Power.MID -> 1; else -> 2 })
         }
         if (old?.wide != c.wide) setFlag(out, FLAG_NARROW, !c.wide)
         if (old?.scanAdd != c.scanAdd) setFlag(out, FLAG_SCAN_ADD, c.scanAdd)
         if (old?.busyLockout != c.busyLockout) setFlag(out, FLAG_BUSY_LOCKOUT, c.busyLockout)
+        if (old?.mode != c.mode) setFlag(out, FLAG_AM, c.mode == Modulation.AM)
+        // Options as the caller gave them, not as normalized: a missing one keeps the slot's value.
+        fun changed(o: ChannelOption): String? = channel.options[o.key]?.takeIf { it != old?.options?.get(o.key) }
+        changed(SIGNALLING)?.let { setLowNibble(out, 12, it.toInt()) }
+        changed(SCRAMBLER)?.let { out[14] = ((out[14].toInt() and 0x0F) or (it.toInt() shl 4)).toByte() }
+        changed(ENCRYPTION)?.let {
+            out[15] = ((out[15].toInt() and (0x03 shl ENCRYPTION_SHIFT).inv()) or (it.toInt() shl ENCRYPTION_SHIFT)).toByte()
+        }
+        changed(FHSS_LEARN)?.let { setFlag(out, FLAG_LEARN_FHSS, it == "true") }
+        changed(FHSS_CODE)?.let { encodeFhss(it, out, FHSS_AT) }
         // A name Offset cannot write (GB2312) survives as long as the user leaves it alone.
         if (old?.name != channel.name) encodeName(c.name, out)
         return out
@@ -135,7 +158,51 @@ object Rt950ProCodec {
             power = Rt950ProProfile.nearestPower(channel.power),
             pttIdCode = 0,
             name = Rt950ProProfile.sanitizeName(channel.name),
+            mode = Rt950ProProfile.nearestMode(channel.mode),
+            options = Rt950ProProfile.completeOptions(channel.options),
         )
+    }
+
+    /** The signalling (DTMF code) group, 0 to 15 as stored; CHIRP's RT-950 module shows the same numbers. */
+    val SIGNALLING = ChannelOption.Choice(
+        "rt950.signalling", "Signalling group", ChannelOption.Section.SIGNALLING,
+        (0..15).map { "$it" to "$it" },
+        help = "Which of the radio's DTMF signalling groups this channel uses.",
+    )
+
+    val SCRAMBLER = ChannelOption.Choice(
+        "rt950.scrambler", "Scrambler", ChannelOption.Section.PRIVACY,
+        listOf("0" to "Off") + (1..8).map { "$it" to "Code $it" },
+        storable = (0..15).map { "$it" }.toSet(),
+    )
+
+    val ENCRYPTION = ChannelOption.Choice(
+        "rt950.encryption", "Encryption", ChannelOption.Section.PRIVACY,
+        listOf("0" to "Off", "1" to "Type 1", "2" to "Type 2", "3" to "Type 3"),
+    )
+
+    val FHSS_LEARN = ChannelOption.Toggle(
+        "rt950.fhssLearn", "Learn hopping code", ChannelOption.Section.PRIVACY,
+        help = "When on, the radio learns the frequency hopping code from the first radio it hears.",
+    )
+
+    val FHSS_CODE = ChannelOption.HexCode("rt950.fhssCode", "Hopping code", ChannelOption.Section.PRIVACY, length = 6)
+
+    val OPTIONS: List<ChannelOption> = listOf(SIGNALLING, SCRAMBLER, ENCRYPTION, FHSS_LEARN, FHSS_CODE)
+
+    /** The six digit hopping code at [offset], or empty when the field holds none. */
+    fun decodeFhss(bytes: ByteArray, offset: Int): String {
+        if (bytes[offset + 3].toInt() and 0xFF != FHSS_MARK) return ""
+        return (2 downTo 0).joinToString("") { "%02X".format(bytes[offset + it].toInt() and 0xFF) }
+    }
+
+    private fun encodeFhss(code: String, out: ByteArray, offset: Int) {
+        if (code.isEmpty()) {
+            out.fill(0xFF.toByte(), offset, offset + 4)
+            return
+        }
+        for (i in 0 until 3) out[offset + 2 - i] = code.substring(i * 2, i * 2 + 2).toInt(16).toByte()
+        out[offset + 3] = FHSS_MARK.toByte()
     }
 
     /** Decodes a two byte tone field. Unknown DCS indexes read as no tone (and are kept). */

@@ -5,6 +5,7 @@ import com.vyntric.offset.protocol.Duplex
 import com.vyntric.offset.protocol.RadioModel
 import com.vyntric.offset.protocol.Squelch
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import com.vyntric.offset.protocol.Uv5rImage
 import org.junit.Test
@@ -117,5 +118,30 @@ class BuildStagingTest {
         val list = build.add(emptyList(), List(3) { Channel(146_000_000L + it * 15_000L) }, ChannelOrigin.MANUAL, uv5r).staging
         val moved = build.move(list, 0, 2, uv5r)
         assertEquals(listOf(list[1].key, list[2].key, list[0].key), moved.map { it.key })
+    }
+
+    @Test fun `a staging list from before modes keeps the radio's AM channel AM`() {
+        val radio = com.vyntric.offset.protocol.Rt950ProDriver.sampleImage()
+        val am = (0 until radio.capacity).first { radio.channel(it)?.mode == com.vyntric.offset.protocol.Modulation.AM }
+        val legacy = listOf(
+            StagedChannel(1, radio.channel(am)!!.copy(mode = com.vyntric.offset.protocol.Modulation.FM), ChannelOrigin.RADIO, slot = am, modeUnknown = true),
+            StagedChannel(2, Channel(146_520_000), ChannelOrigin.MANUAL, slot = 900, modeUnknown = true),
+        )
+        val adopted = build.adoptRadioModes(legacy, radio)
+        assertEquals(com.vyntric.offset.protocol.Modulation.AM, adopted[0].channel.mode)
+        assertEquals(com.vyntric.offset.protocol.Modulation.FM, adopted[1].channel.mode)
+        assertEquals(listOf(false, false), adopted.map { it.modeUnknown })
+        // The adopted channel matches the radio, so the write leaves the slot's bytes alone.
+        val nic = com.vyntric.offset.protocol.NicFw950Driver.sampleImage()
+        val veryHigh = nic.channel(5)!!
+        val staged050 = StagedChannel(3, veryHigh.copy(power = com.vyntric.offset.protocol.Power.HIGH, options = emptyMap()), ChannelOrigin.RADIO, slot = 5, modeUnknown = true)
+        assertEquals(com.vyntric.offset.protocol.Power.VERY_HIGH, build.adoptRadioModes(listOf(staged050), nic).single().channel.power)
+        assertEquals(radio.channel(am), adopted[0].channel.copy(options = radio.channel(am)!!.options))
+    }
+
+    @Test fun `editing a channel of unknown mode keeps it unknown unless the mode changes`() {
+        val s = listOf(StagedChannel(1, Channel(127_550_000, Duplex.OFF, name = "AIR"), ChannelOrigin.RADIO, modeUnknown = true))
+        assertTrue(build.replace(s, 1, s[0].channel.copy(name = "TOWER")).single().modeUnknown)
+        assertFalse(build.replace(s, 1, s[0].channel.copy(mode = com.vyntric.offset.protocol.Modulation.AM)).single().modeUnknown)
     }
 }

@@ -188,8 +188,9 @@ fun CellRow(
             }
         }
         if (value != null) {
+            // Fills the space the title leaves, so the value sits against the trailing edge.
             Text(value, style = type.body, color = colors.secondaryLabel, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End,
-                modifier = Modifier.weight(1f, fill = false))
+                modifier = Modifier.weight(1f))
         }
         trailing?.invoke()
         if (chevron) {

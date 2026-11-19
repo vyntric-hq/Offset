@@ -76,7 +76,8 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
                     is RadioOperations.Result.ReadDone -> {
                         c.operations.consume(r)
                         val wasEmpty = c.staging.update { staged ->
-                            if (staged.isEmpty()) c.buildStaging.fromImage(r.read.image) to true else staged to false
+                            if (staged.isEmpty()) c.buildStaging.fromImage(r.read.image) to true
+                            else c.buildStaging.adoptRadioModes(staged, r.read.image) to false
                         }
                         val loaded = if (wasEmpty) " Its ${r.read.image.usedChannelCount} channels are now in staging." else ""
                         val factory = r.read.factoryImageName?.let { " First read of this radio: saved \"$it\" to Images." } ?: ""

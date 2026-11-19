@@ -93,9 +93,33 @@ class BuildStaging(private val newKey: () -> Long) {
 
     private fun sorted(list: List<StagedChannel>) = list.sortedBy { it.slot }
 
+    /**
+     * Staged channels saved before 0.6.0 take what that version could not see from [radio]'s
+     * channel in their slot: its mode, and its power where 0.5.0 would have shown it as the staged
+     * level (nicFW's Very high as High, Very low and Zero as Low). They then stop being
+     * [StagedChannel.modeUnknown]. An empty slot leaves the channel as it is.
+     */
+    fun adoptRadioModes(current: List<StagedChannel>, radio: RadioImage): List<StagedChannel> = current.map { s ->
+        if (!s.modeUnknown) return@map s
+        val held = radio.channel(s.slot)?.takeIf { s.slot < radio.capacity } ?: return@map s.copy(modeUnknown = false)
+        val power = if (legacyPower(held.power) == s.channel.power) held.power else s.channel.power
+        s.copy(channel = s.channel.copy(mode = held.mode, power = power), modeUnknown = false)
+    }
+
+    /** How Offset 0.5.0 and earlier showed [p]: three levels only. */
+    private fun legacyPower(p: Power): Power = when (p) {
+        Power.VERY_HIGH, Power.HIGH -> Power.HIGH
+        Power.MID -> Power.MID
+        Power.LOW, Power.VERY_LOW, Power.ZERO -> Power.LOW
+    }
+
     /** Replaces a channel's settings. Digital channels are kept as the radio has them and never replaced. */
     fun replace(current: List<StagedChannel>, key: Long, channel: Channel): List<StagedChannel> =
-        current.map { if (it.key == key && it.channel.digitalMode == null) it.copy(channel = channel) else it }
+        current.map {
+            if (it.key != key || it.channel.digitalMode != null) it
+            // An edit that leaves an unknown mode as shown still lets the next read settle it.
+            else it.copy(channel = channel, modeUnknown = it.modeUnknown && channel.mode == it.channel.mode)
+        }
 
     /**
      * Channels with problems for [target], keyed by staging key: validation problems for analog

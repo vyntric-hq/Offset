@@ -21,13 +21,13 @@ object NicFw950Driver : RadioDriver {
     override val capacity = NicFw950Image.CHANNEL_COUNT
     override val experimental = true
     /**
-     * Channels keep their numbers: each record carries groups, clarifier, scrambler and a power
-     * level Offset does not model, and an edit is encoded on top of the slot's own record, so
-     * moving a channel would hand it another slot's settings. New channels go into free slots.
+     * Channels keep their numbers: an edit is encoded on top of the slot's own record (groups,
+     * clarifier, scrambler and bytes nicFW keeps for itself), so moving a channel would hand it
+     * another slot's settings. New channels go into free slots.
      */
     override val fixedSlots = true
     override val fixedSlotsReason =
-        "each one carries groups and settings Offset keeps as they are; new channels go into free numbers."
+        "each one carries its own scan groups and settings; new channels go into free numbers."
     override val defaultProfile: RadioProfile = NicFw950Profile
     override val chirpModels: Set<String> = setOf(NicFw950Image.CHIRP_MODEL)
     override val chirpFirstLocation = 1
@@ -79,11 +79,15 @@ object NicFw950Driver : RadioDriver {
             Channel(147_420_000, busyLockout = true, pttId = PttId.BOTH, name = "Simplex group A"),
         )
         channels.forEachIndexed { i, c -> NicFw950Codec.encode(c).copyInto(bytes, NicFw950Image.channelOffset(i)) }
-        // Channel 6: very high power (6) and groups A and C, both kept by Offset's edits.
+        // Channel 6: very high power and groups A and C, as nicFW's own app packs them.
         val six = NicFw950Image.channelOffset(5)
         bytes[six + 21] = 6
-        bytes[six + 8] = 1
-        bytes[six + 9] = 3
+        bytes[six + 8] = 3
+        bytes[six + 9] = 1
+        // Channel 7: an HF receiver channel, 40 m LSB, receive only.
+        NicFw950Codec.encode(
+            Channel(7_200_000, Duplex.OFF, mode = Modulation.LSB, name = "40m LSB", options = mapOf("nicfw.bandwidth" to "5")),
+        ).copyInto(bytes, NicFw950Image.channelOffset(6))
         // Channel 8: a deleted channel; its name is still there, but no frequency or magic.
         val eight = NicFw950Image.channelOffset(7)
         "Old".forEachIndexed { i, ch -> bytes[eight + NicFw950Codec.NAME_OFFSET + i] = ch.code.toByte() }
@@ -95,10 +99,27 @@ object NicFw950Driver : RadioDriver {
 object NicFw950Profile : RadioProfile {
     override val displayName = "RT-950 Pro (nicFW950)"
 
-    /** The RT-950 Pro's tuning range, as for the stock firmware; nicFW enforces its own TX band plan. */
-    override val bands: List<LongRange> = Rt950ProProfile.bands
+    /**
+     * 150 kHz (the HF receiver's lowest) to 580 MHz, the stock firmware's top. nicFW checks
+     * transmit against its own band plan, so Offset does not narrow transmit further.
+     */
+    override val bands: List<LongRange> = listOf(150_000L until 580_000_000L)
 
-    override val powerLevels: List<Power> = listOf(Power.HIGH, Power.MID, Power.LOW)
+    override val powerLevels: List<Power> =
+        listOf(Power.VERY_HIGH, Power.HIGH, Power.MID, Power.LOW, Power.VERY_LOW, Power.ZERO)
+
+    override val modes: List<Modulation> = NicFw950Codec.MODES
+
+    override val channelOptions: List<ChannelOption> get() = NicFw950Codec.OPTIONS
+
+    /** Wide, narrow, auto and the HF receiver's widths: the bandwidth option replaces the switch. */
+    override val storesWide = false
+
+    /** PTT-ID always sends DTMF preset 99; channels pick no code. */
+    override val pttIdCodes = 0
+
+    /** Frequencies are stored in 10 Hz steps, which SSB and CW need. */
+    override val fineTuning = true
 
     /** 30 ASCII characters (CHANNAME_MAX_LENGTH), as nicFW's own programming app writes. */
     override val nameLength = NicFw950Codec.NAME_BYTES

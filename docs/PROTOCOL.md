@@ -177,7 +177,21 @@ Its layout for channels and names is the same, so Offset handles it the same way
   must also be in band.
 - Name at most 7 characters from the character set above.
 - CTCSS between 60.0 and 260.0 Hz; DCS from the supported code list.
-- Power level available on the model; PTT-ID code 1 to 15.
+- Power level available on the model; PTT-ID code within the model's codes (1 to 15 on the
+  UV-5R; none on the RT-950 Pro).
+- Mode one the model stores; the HF receiver's modes (nicFW950) need transmit off. Radios with
+  `fineTuning` (nicFW950) take any 10 Hz step instead of the 2.5 or 6.25 kHz raster.
+- Every radio option the channel carries is checked by its declaration (`ChannelOption`): a
+  choice from what the field can hold, letters within the set and count, a number in range, a
+  hex code of the right length. Options for other radios are ignored.
+
+## Channel options (`ChannelOption`)
+
+Settings only some radios store in a channel are declared by the radio's profile: key, label,
+editor section (Mode, Scan, Signalling, Privacy, Advanced), kind and help. The codec decodes every
+declared option into `Channel.options` and writes an option only when the channel carries it and
+its value changed, so a channel from a file keeps the slot's bytes. See ASSUMPTIONS 105 to 111 for
+each radio's fields.
 
 ## CHIRP .img files (`ChirpImg`)
 
@@ -205,7 +219,9 @@ Baofeng UV-5R with the expected channels, and the file CHIRP saved back is a tes
 Export writes CHIRP's columns: `Location, Name, Frequency, Duplex, Offset, Tone, rToneFreq,
 cToneFreq, DtcsCode, DtcsPolarity, RxDtcsCode, CrossMode, Mode, TStep, Skip, Power, Comment,
 URCALL, RPT1CALL, RPT2CALL, DVCODE`, with CHIRP's number formats (`146.520000`, `100.0`, `023`).
-Power is written in watts (`4.0W`) because CHIRP's CSV importer parses watts. Verified by loading
+Power is written in watts (`4.0W`) because CHIRP's CSV importer parses watts. Mode is FM or NFM,
+AM or NAM by bandwidth, otherwise CHIRP's name for the mode (WFM, USB, LSB, CW, Auto); DSB, which
+CHIRP lacks, is written as AM. Verified by loading
 an Offset CSV in CHIRP's generic CSV driver with no errors.
 
 Import accepts columns in any order and these values: tone modes Tone, TSQL, DTCS and Cross with

@@ -94,7 +94,7 @@ class ChannelCodec(private val model: RadioModel) {
         putU16(out, 10, encodeSquelch(channel.txSquelch))
         out[12] = (channel.pttIdCode and 0x0F).toByte()
         val levels = model.powerLevels
-        val powerIndex = levels.indexOf(channel.power).takeIf { it >= 0 } ?: levels.indexOf(Power.LOW)
+        val powerIndex = levels.indexOf(model.nearestPower(channel.power))
         out[14] = (powerIndex and 0x03).toByte()
         var b15 = channel.pttId.ordinal and 0x03
         if (channel.wide) b15 = b15 or 0x40
@@ -121,11 +121,12 @@ class ChannelCodec(private val model: RadioModel) {
 
     /** The channel as it will read back from the radio after encoding. */
     fun normalize(channel: Channel): Channel {
-        val levels = model.powerLevels
-        val power = if (channel.power in levels) channel.power else Power.LOW
+        val power = model.nearestPower(channel.power)
         return channel.copy(
             rxFreqHz = channel.rxFreqHz / 10 * 10,
             power = power,
+            mode = model.nearestMode(channel.mode),
+            options = model.ownOptions(channel.options),
             name = sanitizeName(channel.name),
             pttIdCode = channel.pttIdCode and 0x0F,
         ).let { c ->

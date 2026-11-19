@@ -28,29 +28,29 @@ class Rt950ProCodecTest {
     private val r7 = "2506004425060044ED09ED0900000102FFFFFFFF4142434445464748494A4B4C"
 
     @Test fun `decode agrees with channel py`() {
-        assertEquals(Channel(146_520_000, name = "CALLING"), codec.decode(hex(r1)))
+        assertEquals(Channel(146_520_000, name = "CALLING"), codec.decode(hex(r1)).plain())
         assertEquals(
             Channel(
                 146_529_000, Duplex.MINUS, 1_860_000, txSquelch = Squelch.Ctcss(1000), power = Power.MID,
                 wide = false, busyLockout = true, pttId = PttId.BOTH, name = "RPT 2M",
             ),
-            codec.decode(hex(r2)),
+            codec.decode(hex(r2)).plain(),
         )
         assertEquals(
             Channel(
                 444_210_000, Duplex.PLUS, 500_000, Squelch.Dcs(754, inverted = true), Squelch.Dcs(23),
                 power = Power.LOW, name = "中继",
             ),
-            codec.decode(hex(r3)),
+            codec.decode(hex(r3)).plain(),
         )
-        assertEquals(Channel(127_550_000, Duplex.OFF, name = "AIR"), codec.decode(hex(r4)))
-        assertEquals(Channel(162_555_000, Duplex.OFF, pttId = PttId.EOT, name = "WX"), codec.decode(hex(r5)))
+        assertEquals(Channel(127_550_000, Duplex.OFF, name = "AIR", mode = Modulation.AM), codec.decode(hex(r4)).plain())
+        assertEquals(Channel(162_555_000, Duplex.OFF, pttId = PttId.EOT, name = "WX"), codec.decode(hex(r5)).plain())
         assertEquals(
             Channel(
                 440_006_250, txSquelch = Squelch.Ctcss(2541), rxSquelch = Squelch.Ctcss(2541), power = Power.MID,
                 scanAdd = false, name = "ABCDEFGHIJKL",
             ),
-            codec.decode(hex(r7)),
+            codec.decode(hex(r7)).plain(),
         )
         assertNull(codec.decode(ByteArray(32) { 0xFF.toByte() }))
         assertNull(codec.decode(ByteArray(32)))
