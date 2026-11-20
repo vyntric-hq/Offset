@@ -7,6 +7,14 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-19
+
+### Fixed
+
+- RT-950 Pro (stock firmware): a write reported "Write not completed" although the radio held
+  the new channels. The radio restarts after a write and Offset tried to read it back before it
+  had booted. Offset now waits for the restart and retries the verifying read for about 20 s.
+
 ## [0.6.0] - 2026-11-19
 
 ### Added

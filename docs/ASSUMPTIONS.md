@@ -379,3 +379,8 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
 112. **Staging lists saved by 0.5.0 have no modes.** Their channels take the mode, and the nicFW
     power level 0.5.0 showed as High or Low, from the radio's channel in the same slot at the next
     read, which every write needs first; an untouched AM or HF channel is not written back as FM.
+113. **The stock RT-950 Pro restarts after a write.** Seen on hardware (2026-11-19): the channels
+    were written, the radio restarted, and the read back sent 100 ms after `E` went unanswered.
+    Offset now waits 3 s, then the verifying read sends the handshake up to five times, 1 s apart,
+    3 s each. How long the restart takes was not measured; an ordinary read still tries once so a
+    radio that is off is reported at once. (hardware: confirm the verify passes)

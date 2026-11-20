@@ -14,8 +14,9 @@ import java.io.IOException
  * queue behaves like a serial timeout.
  *
  * Faults: [silent] (radio off or wrong cable), [detachAfterHostBytes] (cable pulled, the next
- * byte throws [IOException]) and [corruptWriteAddresses] (the radio stores different bytes than
- * it acknowledged, so only a read back can catch it).
+ * byte throws [IOException]), [corruptWriteAddresses] (the radio stores different bytes than
+ * it acknowledged, so only a read back can catch it) and [handshakesIgnoredAfterWrite] (the radio
+ * restarts after a write session, as the real one does).
  */
 class Rt950ProSimulator(
     image: Rt950ProImage,
@@ -35,6 +36,18 @@ class Rt950ProSimulator(
     var silent: Boolean = false
     var detachAfterHostBytes: Long? = null
     var corruptWriteAddresses: Set<Int> = emptySet()
+
+    /**
+     * After a session that wrote blocks ends, the radio restarts and stays deaf to this many
+     * complete handshakes, standing in for the seconds a real RT-950 Pro takes to boot.
+     */
+    var handshakesIgnoredAfterWrite: Int = 0
+    private var restartingFor = 0
+    private var wroteThisSession = false
+
+    /** Handshakes the host sent while the radio was restarting. */
+    var handshakesIgnored: Int = 0
+        private set
 
     /** Bytes received from the host since construction; use it to place [detachAfterHostBytes]. */
     val hostBytesReceived: Long get() = hostBytes
@@ -117,6 +130,11 @@ class Rt950ProSimulator(
                     if (b == handshake[0]) pending += b
                 } else if (pending.size == handshake.size) {
                     pending.clear()
+                    if (restartingFor > 0) {
+                        restartingFor--
+                        handshakesIgnored++
+                        return
+                    }
                     out.addLast(ACK)
                     state = State.AWAIT_F
                 }
@@ -151,6 +169,8 @@ class Rt950ProSimulator(
             sessionsEnded++
             state = State.IDLE
             key = null
+            if (wroteThisSession) restartingFor = handshakesIgnoredAfterWrite
+            wroteThisSession = false
             return
         }
         pending += b
@@ -176,6 +196,7 @@ class Rt950ProSimulator(
                     }
                     data.copyInto(space(command), address)
                     blocksWritten++
+                    wroteThisSession = true
                     out.addLast(ACK)
                 }
             }

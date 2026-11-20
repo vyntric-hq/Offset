@@ -19,6 +19,11 @@ import kotlin.random.Random
  * byte header and 128 encrypted bytes. Write: send `[cmd, hi, lo, 0x80]` and 128 encrypted bytes,
  * expect ACK. The session ends with `E`. Each session either reads or writes, never both, as in
  * the flows tested on hardware.
+ *
+ * The radio restarts after a write session ends and ignores the handshake until it has booted,
+ * so a write waits [RESTART_DELAY_MS] before returning and the verifying read retries its
+ * handshake ([RESTART_ATTEMPTS]). An ordinary read tries once, so a radio that is off is reported
+ * at once.
  */
 class Rt950ProClone(
     private val port: SerialPort,
@@ -28,9 +33,12 @@ class Rt950ProClone(
 ) : RadioClone {
     private var key: ByteArray? = null
 
-    /** Reads every segment (rule 1: always the whole image) and ends the session. */
+    /**
+     * Reads every segment (rule 1: always the whole image) and ends the session. The verifying
+     * read after a write retries the handshake while the radio may still be restarting.
+     */
     override fun download(phase: CloneProgress.Phase): Rt950ProImage = io {
-        handshake()
+        handshake(attempts = if (phase == CloneProgress.Phase.VERIFYING) RESTART_ATTEMPTS else 1)
         val image = ByteArray(Rt950ProImage.SIZE)
         var done = 0
         for (segment in Rt950ProImage.SEGMENTS) {
@@ -55,7 +63,8 @@ class Rt950ProClone(
      * channels. This session does not read the radio first (reading and writing in one session
      * is untested on hardware), so the caller's full read made moments before (rule 1) is the
      * only check that the radio's channels still match [before]; the model string names a
-     * model, not a unit.
+     * model, not a unit. The radio restarts once the session ends; this returns after
+     * [RESTART_DELAY_MS] so the read back does not knock while it boots.
      */
     override fun upload(target: RadioImage, before: RadioImage): Int {
         require(target is Rt950ProImage && before is Rt950ProImage) { "Not an RT-950 Pro image" }
@@ -74,18 +83,19 @@ class Rt950ProClone(
                 onProgress(CloneProgress(CloneProgress.Phase.WRITING, offset + Rt950ProImage.BLOCK, segment.length))
             }
             end()
+            sleeper.sleep(RESTART_DELAY_MS)
             segment.blocks
         }
     }
 
-    /** Opens the session and agrees the XOR key. Returns the model string. */
-    private fun handshake(): String {
+    /**
+     * Opens the session and agrees the XOR key, sending the handshake up to [attempts] times while
+     * the radio stays silent. Returns the model string.
+     */
+    private fun handshake(attempts: Int = 1): String {
         onProgress(CloneProgress(CloneProgress.Phase.IDENTIFYING, 0, 0))
-        port.purge()
-        port.write(HANDSHAKE)
-        val ack = port.read(1, IDENT_TIMEOUT_MS)
-        if (ack.isEmpty()) throw RadioException.NoContact()
-        if (ack[0] != ACK) throw RadioException.Protocol("The radio refused clone mode.")
+        val ack = enterCloneMode(attempts)
+        if (ack != ACK) throw RadioException.Protocol("The radio refused clone mode.")
         port.write(byteArrayOf('F'.code.toByte()))
         readExact(IDENTITY_SIZE, IDENT_TIMEOUT_MS) { HANDSHAKE_STOPPED }
         port.write(byteArrayOf('M'.code.toByte()))
@@ -103,6 +113,18 @@ class Rt950ProClone(
         if (keyAck[0] != ACK) throw RadioException.Protocol("The radio did not accept the session key.")
         key = sessionKey
         return model
+    }
+
+    /** Sends the handshake until the radio answers, up to [attempts] times. Returns its answer. */
+    private fun enterCloneMode(attempts: Int): Byte {
+        repeat(attempts) { attempt ->
+            if (attempt > 0) sleeper.sleep(RESTART_RETRY_DELAY_MS)
+            port.purge()
+            port.write(HANDSHAKE)
+            val ack = port.read(1, IDENT_TIMEOUT_MS)
+            if (ack.isNotEmpty()) return ack[0]
+        }
+        throw RadioException.NoContact()
     }
 
     private fun readBlock(command: Int, address: Int): ByteArray {
@@ -166,6 +188,14 @@ class Rt950ProClone(
         const val IDENT_TIMEOUT_MS = 3_000L
         const val BLOCK_TIMEOUT_MS = 3_000L
         const val END_DELAY_MS = 100L
+        /**
+         * Wait after a write session before the read back. Not measured on hardware: a user saw
+         * the radio restart after a write and the read back 100 ms later go unanswered.
+         */
+        const val RESTART_DELAY_MS = 3_000L
+        /** Handshakes the verifying read sends, [IDENT_TIMEOUT_MS] each, about 20 s in all. */
+        const val RESTART_ATTEMPTS = 5
+        const val RESTART_RETRY_DELAY_MS = 1_000L
         private const val HANDSHAKE_STOPPED = "The radio stopped answering during the handshake."
         val HANDSHAKE: ByteArray = "PROGRAMBT9000U".toByteArray(Charsets.US_ASCII)
     }

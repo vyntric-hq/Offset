@@ -274,7 +274,8 @@ The image is six segments (channels 0x0000 to 0x7800, VFO, function, DTMF, modul
 names) plus APRS (commands 54 and 55), 33,152 bytes. Channel records are 32 bytes: BCD RX and TX,
 two tone words (DCS index or CTCSS tenths), signalling, PTT ID, power and scrambler, flags (narrow,
 busy lockout, scan, TX enable, AM), frequency hopping code, 12 byte GB2312 name. Offset writes the
-channel segment only.
+channel segment only. The radio restarts after a write session ends, so Offset waits 3 s and the
+verifying read retries its handshake up to five times (about 20 s in all).
 
 **Radtel RT-950 Pro on nicFW950** (`NicFw950*.kt`, from nicsure's nicFW880/950 wiki and RT950Pro
 BTLE bridge, checked against the NicFW950 RMS app). 38400 baud, no handshake. Packets start `AA`,

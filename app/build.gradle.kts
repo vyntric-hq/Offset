@@ -10,7 +10,7 @@ plugins {
  * Version comes from the release tag (v1.2.3 -> 1.2.3) so a rebuild from the tag is identical.
  * CI passes -Poffset.versionName=<tag without v>. Local builds default to the CHANGELOG version.
  */
-val offsetVersionName: String = (findProperty("offset.versionName") as String?)?.removePrefix("v") ?: "0.6.0"
+val offsetVersionName: String = (findProperty("offset.versionName") as String?)?.removePrefix("v") ?: "0.6.1"
 val offsetVersionCode: Int = offsetVersionName.substringBefore('-').split('.').map { it.toInt() }
     .let { (major, minor, patch) -> major * 10_000 + minor * 100 + patch }
 

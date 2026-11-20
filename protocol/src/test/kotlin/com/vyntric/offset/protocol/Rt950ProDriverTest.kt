@@ -73,6 +73,33 @@ class Rt950ProDriverTest {
         assertEquals(3, sim.sessionsEnded)
     }
 
+    @Test fun `the verifying read waits out the restart after a write`() {
+        val sim = radio().apply { handshakesIgnoredAfterWrite = 2 }
+        val before = clone(sim).download() as Rt950ProImage
+        val target = before.withChannel(9, Channel(147_000_000, name = "New"))
+        val slept = mutableListOf<Long>()
+        val sleeper = Sleeper { slept += it }
+        driver.clone(sim, sleeper, {}, Random(1)).upload(target, before)
+        assertTrue("waits for the restart after ending a write", slept.sum() >= Rt950ProClone.RESTART_DELAY_MS)
+        assertEquals(target, driver.clone(sim, sleeper, {}, Random(2)).download(CloneProgress.Phase.VERIFYING))
+        assertEquals(2, sim.handshakesIgnored)
+    }
+
+    @Test fun `a radio that never comes back after a write is no contact, not a hang`() {
+        val sim = radio().apply { handshakesIgnoredAfterWrite = Int.MAX_VALUE }
+        val before = clone(sim).download() as Rt950ProImage
+        clone(sim).upload(before.withChannel(9, Channel(147_000_000)), before)
+        expect<RadioException.NoContact> { clone(sim).download(CloneProgress.Phase.VERIFYING) }
+        assertEquals(Rt950ProClone.RESTART_ATTEMPTS, sim.handshakesIgnored)
+    }
+
+    @Test fun `an ordinary read of a silent radio gives up after one try`() {
+        val sim = radio().apply { silent = true }
+        val slept = mutableListOf<Long>()
+        expect<RadioException.NoContact> { driver.clone(sim, { slept += it }, {}, Random(1)).download() }
+        assertTrue(slept.isEmpty())
+    }
+
     @Test fun `unchanged image writes the same bytes`() {
         val sim = radio()
         val before = clone(sim).download() as Rt950ProImage
