@@ -11,7 +11,8 @@ import kotlin.random.Random
 
 /**
  * The Radtel RT-950 Pro. CHIRP has no driver for it; the protocol and layout come from the
- * reverse engineering credited above. Experimental: Offset has not written one on hardware.
+ * reverse engineering credited above. Read and write are confirmed on a radio with the stock
+ * firmware.
  */
 object Rt950ProDriver : RadioDriver {
     override val id = "rt950pro"
@@ -19,15 +20,13 @@ object Rt950ProDriver : RadioDriver {
     override val shortName = "RT-950 Pro"
     override val baudRate = Rt950ProClone.BAUD_RATE
     override val capacity = Rt950ProImage.CHANNEL_COUNT
-    override val experimental = true
+    override val experimental = false
     override val fixedSlots = false
     override val defaultProfile: RadioProfile = Rt950ProProfile
     override val chirpModels: Set<String> = setOf(Rt950ProImage.MODEL_NAME)
     override val cableAdvice =
         "The RT-950 Pro programs through a USB serial cable with a CH340 chip (USB ID 1a86:7523). " +
-            "Reports suggest it is the Kenwood style 2-pin plug in the speaker and mic jack, and that " +
-            "the USB-C port only charges the radio, but this is not confirmed. Use the cable sold for " +
-            "the radio's programming software, and turn the radio on before connecting."
+            "Turn the radio on before connecting."
 
     /** Only the 33,152 byte image; no other family uses that size. */
     override fun recognizes(bytes: ByteArray) = bytes.size == Rt950ProImage.SIZE

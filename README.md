@@ -43,7 +43,7 @@ screenshots use a simulated position in Denver and repeater data from Hearham.co
 | UV-5R | Baofeng UV-5R (all firmware CHIRP's UV-5R driver accepts, including original firmware before BFB291), UV-5X, Retevis RT5R, RT5RV, RT5, Rugged RH5R, Radioddity UV-5R EX, Ansoko A-5R | High, Low |
 | BF-F8HP | Baofeng BF-F8HP, UV-5R 8W, UV-5RTP, Retevis RT5 tri-power, GA-5S, UV-5XP, TI-F8+, UV-5R Pro, TS-T9+ | High, Med, Low |
 | DM-32UV | Baofeng DM-32UV (4000 channels) | High, Med, Low |
-| RT-950 Pro (experimental) | Radtel RT-950 Pro (960 channels) | High, Med, Low |
+| RT-950 Pro | Radtel RT-950 Pro (960 channels) | High, Med, Low |
 | RT-950 Pro nicFW950 (experimental) | Radtel RT-950 Pro running nicFW950 (999 channels) | Very high, High, Med, Low, Very low, Zero |
 
 Pick the radio type on the Radio tab before reading; each family has its own protocol. Within the
@@ -55,12 +55,11 @@ UV-5R family the model is detected from the firmware string.
   refer to them; new channels go into free numbers and a zone named "Offset" so they can be
   selected on the radio. A cable with an FTDI or CP2102 chip is recommended; some CH340 cables
   corrupt data from this radio.
-- **RT-950 Pro (experimental).** CHIRP has no driver. The protocol and channel layout come from
-  community reverse engineering (credited below) that was tested on a radio, but Offset itself has
-  not written to one yet. Only channel memory is written; settings, VFOs and APRS are never sent.
-  Every channel setting can be edited: AM receive, signalling group, scrambler, encryption and
-  frequency hopping, alongside the usual ones. The radio reportedly programs
-  through a CH340 cable; which plug it uses is not confirmed.
+- **RT-950 Pro.** CHIRP has no driver. The protocol and channel layout come from community
+  reverse engineering (credited below); Offset has read and written a radio on the stock firmware.
+  Only channel memory is written; settings, VFOs and APRS are never sent. Every channel setting
+  can be edited: AM receive, signalling group, scrambler, encryption and frequency hopping,
+  alongside the usual ones. The radio programs through a CH340 USB serial cable.
   Offset's driver matches the CHIRP module (Nathan Barguss's) that has been shown reading and
   writing the radio, byte for byte; Offset writes less (channels only).
 - **RT-950 Pro on nicFW950 (experimental).** For radios flashed with nicsure's nicFW950. nicFW

@@ -222,8 +222,8 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     inverted). **(hardware)**
 78. **RT-950 Pro bands are 18 to 64 MHz and 70 to 580 MHz** (Nathan Barguss's valid_bands), power
     10, 5 and 1 W. Offset does not block transmit frequencies the radio itself may refuse. **(hardware)**
-79. **RT-950 Pro connection:** a CH340 USB serial cable is reported; whether it uses the 2-pin
-    jack or the USB-C port is not confirmed, and the app says so.
+79. **RT-950 Pro connection:** a CH340 USB serial cable. The app no longer speculates about which
+    plug it uses.
 80. **Staging is not cleared when the radio type changes.** Channels that do not fit the new radio
     (too many slots, long names, DMR) are flagged and block the write until fixed.
 
@@ -384,3 +384,7 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     Offset now waits 3 s, then the verifying read sends the handshake up to five times, 1 s apart,
     3 s each. How long the restart takes was not measured; an ordinary read still tries once so a
     radio that is off is reported at once. (hardware: confirm the verify passes)
+114. **The stock RT-950 Pro is no longer experimental.** The user read and wrote a radio on the
+    stock firmware several times with 0.6.1 (2026-11-19), with the write verified. The app no
+    longer labels it experimental. The privacy and signalling values (item 106) are still
+    unchecked on air. nicFW950 stays experimental until it is run on a radio.

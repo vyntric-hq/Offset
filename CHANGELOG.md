@@ -7,6 +7,13 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-11-19
+
+### Changed
+
+- RT-950 Pro (stock firmware) is no longer marked experimental: reading and writing are
+  confirmed on a radio. Its cable note is shorter. nicFW950 stays experimental.
+
 ## [0.6.1] - 2026-11-19
 
 ### Fixed
