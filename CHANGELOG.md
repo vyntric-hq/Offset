@@ -7,6 +7,15 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-11-20
+
+### Changed
+
+- Simplex presets: tapping a preset shows its description and every channel, with Add at the top
+  and bottom. Nothing is staged until Add is tapped. The list shows each preset's channel count.
+- The Connection section's note is one line: seat the cable firmly, then turn the radio on. The
+  RT-950 Pro and nicFW950 cable notes are shorter.
+
 ## [0.6.2] - 2026-11-19
 
 ### Changed

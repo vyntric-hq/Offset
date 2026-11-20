@@ -31,10 +31,7 @@ object NicFw950Driver : RadioDriver {
     override val defaultProfile: RadioProfile = NicFw950Profile
     override val chirpModels: Set<String> = setOf(NicFw950Image.CHIRP_MODEL)
     override val chirpFirstLocation = 1
-    override val cableAdvice =
-        "Use the RT-950 Pro's own programming cable (a CH340 USB serial cable). This type is for " +
-            "radios running nicFW950; for Radtel's own firmware choose \"RT-950 Pro\". After a write " +
-            "nicFW restarts the radio so the new channels take effect."
+    override val cableAdvice = "For radios running nicFW950; for Radtel's own firmware choose \"RT-950 Pro\"."
 
     /** Only the 62,464 byte channel section; no other family uses that size. */
     override fun recognizes(bytes: ByteArray) = bytes.size == NicFw950Image.SIZE

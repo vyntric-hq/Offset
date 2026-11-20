@@ -24,9 +24,7 @@ object Rt950ProDriver : RadioDriver {
     override val fixedSlots = false
     override val defaultProfile: RadioProfile = Rt950ProProfile
     override val chirpModels: Set<String> = setOf(Rt950ProImage.MODEL_NAME)
-    override val cableAdvice =
-        "The RT-950 Pro programs through a USB serial cable with a CH340 chip (USB ID 1a86:7523). " +
-            "Turn the radio on before connecting."
+    override val cableAdvice = ""
 
     /** Only the 33,152 byte image; no other family uses that size. */
     override fun recognizes(bytes: ByteArray) = bytes.size == Rt950ProImage.SIZE

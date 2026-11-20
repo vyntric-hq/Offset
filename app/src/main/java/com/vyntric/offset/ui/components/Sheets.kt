@@ -21,6 +21,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
@@ -31,7 +32,8 @@ import com.vyntric.offset.ui.theme.OffsetTheme
 
 /**
  * Bottom sheet for details and confirmations: grouped background, small grabber, a title bar
- * with optional leading and trailing text actions.
+ * with optional leading and trailing text actions. A new [page] scrolls the content back to the top,
+ * for a sheet that shows one thing after another.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +44,7 @@ fun OffsetSheet(
     trailingAction: (@Composable () -> Unit)? = null,
     skipPartiallyExpanded: Boolean = true,
     dismissible: Boolean = true,
+    page: Any? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val state = rememberModalBottomSheetState(
@@ -70,7 +73,8 @@ fun OffsetSheet(
                     Box(Modifier.align(Alignment.CenterEnd)) { trailingAction?.invoke() }
                 }
             }
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 24.dp), content = content)
+            val scroll = key(page) { rememberScrollState() }
+            Column(Modifier.fillMaxWidth().verticalScroll(scroll).padding(bottom = 24.dp), content = content)
         }
     }
 }

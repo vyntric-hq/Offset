@@ -4,6 +4,7 @@
  */
 package com.vyntric.offset.ui.radio
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -243,10 +244,8 @@ private fun ConnectionSection(state: RadioUiState, onPermission: () -> Unit, onR
     val running = state.operation as? RadioOperations.State.Running
     InsetSection(
         header = "Connection",
-        footer = "Connect the cable through the USB-C OTG adapter. Turn the radio off, seat the plug firmly, " +
-            "then turn it on with the volume up. " +
-            state.radioType.cableAdvice.let { if (it.isBlank()) "" else "$it " } +
-            "Offset reads the whole radio before every write and keeps a backup.",
+        footer = "Seat the cable firmly, then turn the radio on." +
+            state.radioType.cableAdvice.let { if (it.isBlank()) "" else " $it" },
     ) {
         cell {
             CellRow(
@@ -439,15 +438,47 @@ private fun RadioTypeSheet(current: RadioDriver, onDismiss: () -> Unit, onPick: 
     }
 }
 
+/**
+ * The presets, then one preset's channels: tapping a preset shows what it holds, and only the
+ * Add button stages it.
+ */
 @Composable
 private fun PresetsSheet(onDismiss: () -> Unit, onPick: (SimplexPresets.Preset) -> Unit) {
-    OffsetSheet(onDismiss = onDismiss, title = "Simplex presets", leadingAction = { BarAction("Cancel", onClick = onDismiss) }) {
-        InsetSection(footer = "Presets are added to the end of staging. Channels already staged are skipped.") {
-            SimplexPresets.ALL.forEach { p ->
-                cell {
-                    CellRow(p.title, subtitle = "${p.channels.size} channels. ${p.description}", chevron = true,
-                        onClickLabel = "Add ${p.title}") { onPick(p) }
+    var openId by rememberSaveable { mutableStateOf<String?>(null) }
+    val open = SimplexPresets.ALL.firstOrNull { it.id == openId }
+    OffsetSheet(
+        onDismiss = onDismiss,
+        title = open?.title ?: "Simplex presets",
+        leadingAction = {
+            if (open == null) BarAction("Cancel", onClick = onDismiss) else BarAction("Presets") { openId = null }
+        },
+        trailingAction = open?.let { p -> { BarAction("Add") { onPick(p) } } },
+        page = openId,
+    ) {
+        // Inside the sheet: it is its own window, so Back reaches handlers in its content first.
+        BackHandler(enabled = open != null) { openId = null }
+        if (open == null) {
+            InsetSection {
+                SimplexPresets.ALL.forEach { p ->
+                    cell {
+                        CellRow(p.title, subtitle = "${p.channels.size} channels", chevron = true, onClickLabel = "Show ${p.title}") { openId = p.id }
+                    }
                 }
+            }
+        } else {
+            SectionFooter(open.description)
+            InsetSection(header = "${open.channels.size} channels", footer = "Added to the end of staging. Channels already staged are skipped.") {
+                open.channels.forEach { ch ->
+                    cell {
+                        CellRow(
+                            listOf(Fmt.mhz(ch.rxFreqHz), ch.name).filter { it.isNotBlank() }.joinToString("  "),
+                            subtitle = Fmt.channelSummary(ch),
+                        )
+                    }
+                }
+            }
+            Column(Modifier.padding(Dimens.gutter)) {
+                PrimaryButton("Add ${open.channels.size} channels", onClick = { onPick(open) })
             }
         }
     }
