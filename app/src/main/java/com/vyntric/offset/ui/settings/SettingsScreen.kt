@@ -10,6 +10,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,24 +66,27 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
     LargeTitleScreen(title = "Settings") {
         s.message?.let { m -> item(key = "msg") { SectionFooter(m) } }
         item(key = "source") {
-            InsetSection(header = "Repeater data source", footer = "Hearham is free and needs no account. RepeaterBook needs your own token. CSV searches a list you import.") {
+            InsetSection(header = "Repeater sources") {
                 RepeaterSource.providers.forEach { src ->
+                    val on = src in s.settings.providers
+                    val needsToken = src == RepeaterSource.REPEATERBOOK && s.token.isBlank()
                     cell {
                         CellRow(
                             src.displayName,
                             subtitle = when (src) {
-                                RepeaterSource.HEARHAM -> "Default, with IRLP and OpenStreetMap listings. Included with the app, works offline, refreshes weekly when online."
-                                RepeaterSource.REPEATERBOOK -> if (s.token.isBlank()) "Off until a token is configured below." else "Your token is configured."
-                                RepeaterSource.CSV -> "A CHIRP CSV from the file picker."
+                                RepeaterSource.HEARHAM -> "Free, works offline"
+                                RepeaterSource.REPEATERBOOK -> if (needsToken) "Add a token below" else null
+                                RepeaterSource.CSV -> "Your imported list"
                                 else -> null
                             },
                             trailing = {
-                                if (s.settings.provider == src) Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = OffsetTheme.colors.accent)
+                                if (on) Icon(Icons.Rounded.Check, contentDescription = "On", tint = OffsetTheme.colors.accent)
                             },
-                            onClickLabel = "Use ${src.displayName}",
+                            enabled = on || !needsToken,
+                            onClickLabel = if (on) "Stop using ${src.displayName}" else "Use ${src.displayName}",
                         ) {
                             haptics.select()
-                            vm.update { it.copy(provider = src) }
+                            vm.toggleSource(src)
                         }
                     }
                 }
@@ -88,12 +95,7 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
         item(key = "rb") {
             InsetSection(
                 header = "RepeaterBook",
-                footer = if (!s.secureStorage) "Encrypted storage is unavailable on this device, so a token cannot be saved."
-                else "Optional. 1. Create a RepeaterBook account (it needs an amateur or US GMRS callsign). " +
-                    "2. Tap Token page and sign in. 3. Pick Offset, generate a token and copy it; it is shown once. " +
-                    "4. Paste it here with your email and tap Test connection.\n\n" +
-                    "The token is stored encrypted and sent only to repeaterbook.com. Your email goes in the " +
-                    "User-Agent, as RepeaterBook requires.",
+                footer = if (!s.secureStorage) "This phone cannot store a token securely." else null,
             ) {
                 cell {
                     TextFieldRow("Token", token, { token = it.trim() }, placeholder = "rbuapp_...",
@@ -103,17 +105,15 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
                     TextFieldRow("Email", email, { email = it.trim() }, placeholder = "you@example.org",
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
                 }
-                if (dirty) cell { ButtonRow("Save", enabled = s.secureStorage) { vm.saveCredentials(token, email) } }
-                cell { ButtonRow(if (s.testing) "Testing" else "Test connection", enabled = !dirty && !s.testing && s.token.isNotBlank() && s.email.contains('@')) { vm.testConnection() } }
+                if (dirty) cell { ButtonRow("Save and test", enabled = s.secureStorage) { vm.saveCredentials(token, email) } }
+                if (!dirty && s.token.isNotBlank()) cell { TestRow(s) { vm.testConnection() } }
                 if (s.token.isNotBlank()) cell { ButtonRow("Remove token", destructive = true) { vm.clearCredentials() } }
+                cell { ButtonRow("Get a token") { uri.openUri(RB_TOKENS) } }
                 cell { ButtonRow("Create a RepeaterBook account") { uri.openUri(RB_REGISTER) } }
-                cell { ButtonRow("Token page (sign in)") { uri.openUri(RB_TOKENS) } }
-                cell { ButtonRow("How RepeaterBook tokens work") { uri.openUri(RB_HELP) } }
             }
-            s.testResult?.let { SectionFooter(it, Modifier.padding(top = 4.dp)) }
         }
         item(key = "cache") {
-            InsetSection(header = "Cached data", footer = "Cached repeater data stays on this phone and is never shared or backed up.") {
+            InsetSection(header = "Cached data") {
                 RepeaterSource.providers.forEach { src ->
                     val at = s.cacheDates[src]
                     cell {
@@ -132,7 +132,6 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
             val dl = s.terrainDownload
             InsetSection(
                 header = "Reach terrain",
-                footer = "Reach fetches elevation for the area it maps and keeps it here, so the same area works offline. Save a whole state before heading somewhere without signal.",
             ) {
                 cell { CellRow("Terrain on this phone", value = megabytes(s.terrainBytes)) }
                 cell {
@@ -146,7 +145,7 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
             }
             if (picking) {
                 OffsetSheet(onDismiss = { picking = false }, title = "Save terrain", leadingAction = { BarAction("Cancel") { picking = false } }) {
-                    InsetSection(footer = "Sizes are estimates. Download over Wi-Fi for large states.") {
+                    InsetSection {
                         UsState.entries.sortedBy { it.displayName }.forEach { st ->
                             cell { CellRow(st.displayName, value = "about ${megabytes(vm.terrainEstimateBytes(st))}", onClick = { picking = false; vm.downloadTerrain(st) }) }
                         }
@@ -174,7 +173,7 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
         }
         if (BuildConfig.DEBUG) {
             item(key = "debug") {
-                InsetSection(header = "Debug", footer = "Debug builds only. The simulated radio speaks the selected radio type's clone protocol in memory, so every screen works without hardware.") {
+                InsetSection(header = "Debug") {
                     cell { ToggleRow("Simulated radio", s.settings.simulatedRadio, { on -> vm.update { it.copy(simulatedRadio = on) } }) }
                     cell { ButtonRow("Reset simulated radio") { vm.resetSimulatedRadio() } }
                 }
@@ -189,9 +188,31 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
     }
 }
 
+/** Test connection, then a spinner while it runs, then the outcome with a tick or a warning. */
+@Composable
+private fun TestRow(s: SettingsUiState, onTest: () -> Unit) {
+    val colors = OffsetTheme.colors
+    val result = s.testResult
+    CellRow(
+        if (s.testing) "Testing..." else "Test connection",
+        subtitle = result?.takeIf { !s.testing },
+        titleColor = colors.accent,
+        enabled = !s.testing && s.email.contains('@'),
+        trailing = {
+            when {
+                s.testing -> CircularProgressIndicator(color = colors.secondaryLabel, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                result == null -> Unit
+                s.testOk -> Icon(Icons.Rounded.CheckCircle, contentDescription = "Connected", tint = colors.success)
+                else -> Icon(Icons.Rounded.ErrorOutline, contentDescription = "Failed", tint = colors.destructive)
+            }
+        },
+        onClickLabel = "Test the RepeaterBook connection",
+        onClick = onTest,
+    )
+}
+
 private fun megabytes(bytes: Long): String =
     if (bytes < 1_000_000) "${bytes / 1000} KB" else String.format(java.util.Locale.US, "%.0f MB", bytes / 1_000_000.0)
 
 private const val RB_REGISTER = "https://www.repeaterbook.com/index.php/component/users/?view=registration"
 private const val RB_TOKENS = "https://www.repeaterbook.com/user/api_apps.php"
-private const val RB_HELP = "https://www.repeaterbook.com/wiki/doku.php?id=api"

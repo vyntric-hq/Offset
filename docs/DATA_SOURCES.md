@@ -15,7 +15,11 @@ amateur + M GMRS, updated <date>") without a network request.
 Text search and "View all on map" use only data already on the phone. They fetch nothing,
 except that Hearham downloads its list once if nothing is cached yet.
 
-Pick the source under **Settings, Repeater data source**.
+Turn sources on under **Settings, Repeater sources**. Every source that is on is searched at the
+same time and the results are merged (`CombinedRepeaterProvider`): a repeater two sources list
+appears once, with RepeaterBook's details first, then Hearham's, then the imported list's. A
+source that fails is reported in one line while the others' results still show. Each result list
+credits every source its repeaters came from.
 
 ## Hearham (default)
 

@@ -22,7 +22,8 @@ enum class BandFilter(val bands: Set<Band>, val label: String) {
 }
 
 data class Settings(
-    val provider: RepeaterSource = RepeaterSource.HEARHAM,
+    /** The repeater sources searched together; never empty. */
+    val providers: Set<RepeaterSource> = setOf(RepeaterSource.HEARHAM),
     val units: Units = Units.MILES,
     /** One of [RADIUS_OPTIONS], in the current [units]; [CLOSEST] means the closest repeaters. */
     val defaultRadius: Int = 25,
@@ -52,7 +53,7 @@ class SettingsRepository(private val prefs: SharedPreferences) {
     fun update(transform: (Settings) -> Settings) {
         val next = transform(_settings.value)
         prefs.edit {
-            putString(K_PROVIDER, next.provider.name)
+            putString(K_PROVIDERS, next.providers.joinToString(",") { it.name })
             putString(K_UNITS, next.units.name)
             putInt(K_RADIUS, next.defaultRadius)
             putString(K_BAND, next.defaultBand.name)
@@ -68,7 +69,7 @@ class SettingsRepository(private val prefs: SharedPreferences) {
     private fun read(): Settings {
         val d = Settings()
         return Settings(
-            provider = enumOr(prefs.getString(K_PROVIDER, null), d.provider),
+            providers = readProviders() ?: d.providers,
             units = enumOr(prefs.getString(K_UNITS, null), d.units),
             defaultRadius = prefs.getInt(K_RADIUS, d.defaultRadius).takeIf { it in Settings.RADIUS_OPTIONS } ?: d.defaultRadius,
             defaultBand = enumOr(prefs.getString(K_BAND, null), d.defaultBand),
@@ -80,11 +81,19 @@ class SettingsRepository(private val prefs: SharedPreferences) {
         )
     }
 
+    /** The saved set, or the single source 0.6.4 and earlier saved, or null for neither. */
+    private fun readProviders(): Set<RepeaterSource>? {
+        val names = prefs.getString(K_PROVIDERS, null)?.split(',') ?: listOfNotNull(prefs.getString(K_PROVIDER, null))
+        return names.mapNotNull { n -> RepeaterSource.providers.firstOrNull { it.name == n } }.toSet().ifEmpty { null }
+    }
+
     private inline fun <reified E : Enum<E>> enumOr(name: String?, default: E): E =
         name?.let { n -> enumValues<E>().firstOrNull { it.name == n } } ?: default
 
     private companion object {
+        /** Single source, written by 0.6.4 and earlier; read once for migration. */
         const val K_PROVIDER = "provider"
+        const val K_PROVIDERS = "providers"
         const val K_UNITS = "units"
         const val K_RADIUS = "default_radius"
         const val K_BAND = "default_band"

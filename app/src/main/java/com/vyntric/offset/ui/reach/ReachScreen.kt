@@ -230,7 +230,7 @@ fun ReachScreen(container: AppContainer) {
             Welcome(Modifier.align(Alignment.Center).padding(bottom = bottom)) { vm.open(ReachSheet.EditStation(null)) }
         } else if (s.setup != null) {
             SummaryPanel(
-                s, units, settings.provider,
+                s, units, settings.providers,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(start = 12.dp, end = 12.dp, bottom = bottom + 12.dp),
                 onTarget = { vm.open(ReachSheet.Link(it.key)) },
                 onAddPlace = { vm.open(ReachSheet.AddPlace(s.origin)) },
@@ -405,7 +405,7 @@ private fun MapButton(icon: androidx.compose.ui.graphics.vector.ImageVector, lab
 private fun SummaryPanel(
     s: ReachUiState,
     units: Units,
-    provider: com.vyntric.offset.domain.RepeaterSource,
+    providers: Set<com.vyntric.offset.domain.RepeaterSource>,
     modifier: Modifier,
     onTarget: (ReachTarget) -> Unit,
     onAddPlace: () -> Unit,
@@ -453,7 +453,7 @@ private fun SummaryPanel(
             // Each directory's required credit, wherever its repeaters appear.
             val uri = androidx.compose.ui.platform.LocalUriHandler.current
             Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 10.dp)) {
-                Fmt.credits(provider, repeaters.mapNotNull { it.repeater }).forEach { credit ->
+                Fmt.credits(providers, repeaters.mapNotNull { it.repeater }).forEach { credit ->
                     Text(
                         credit.attribution, style = OffsetTheme.type.caption,
                         color = if (credit.url.isNotEmpty()) colors.accent else colors.secondaryLabel,

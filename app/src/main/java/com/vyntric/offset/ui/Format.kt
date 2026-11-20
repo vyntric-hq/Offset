@@ -90,8 +90,15 @@ object Fmt {
     }
 
     /** Credits for every directory behind [repeaters], primary [provider] first. */
-    fun credits(provider: RepeaterSource, repeaters: List<Repeater>): List<RepeaterSource> =
-        (listOf(provider) + repeaters.flatMap { it.verification.sources }).distinct()
+    /**
+     * Every directory the [repeaters] cite, chosen [providers] first; with no repeaters, the
+     * chosen providers.
+     */
+    fun credits(providers: Collection<RepeaterSource>, repeaters: List<Repeater>): List<RepeaterSource> {
+        val cited = repeaters.flatMap { it.verification.sources }.toSet()
+        val chosen = RepeaterSource.providers.filter { it in providers && (repeaters.isEmpty() || it in cited) }
+        return (chosen + cited).distinct()
+    }
 
     fun distance(km: Double, units: Units): String = when (units) {
         Units.MILES -> String.format(Locale.US, if (km / Geo.KM_PER_MILE < 10) "%.1f mi" else "%.0f mi", km / Geo.KM_PER_MILE)

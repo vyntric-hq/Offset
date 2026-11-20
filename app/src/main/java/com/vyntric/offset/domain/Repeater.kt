@@ -137,6 +137,10 @@ data class RepeaterResult(
     val fromCache: Boolean,
     /** Older than the provider's refresh interval; the screen may refresh quietly. */
     val stale: Boolean = false,
+    /** The sources whose data is [stale]. */
+    val staleSources: Set<RepeaterSource> = if (stale) setOf(source) else emptySet(),
+    /** Sources that failed while others answered, one line each. */
+    val warnings: List<String> = emptyList(),
 )
 
 /** Provider failures with messages written for the user. */

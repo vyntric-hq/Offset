@@ -47,22 +47,50 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
 
     fun update(transform: (Settings) -> Settings) = c.settings.update(transform)
 
+    /** Saves, then tests at once so the user sees whether the token works. */
     fun saveCredentials(token: String, email: String) {
         c.credentials.save(token, email)
         local.update { it.copy(testResult = null) }
+        if (token.isNotBlank() && email.contains('@')) testConnection()
     }
 
-    fun clearCredentials() = c.credentials.clear()
-
-    fun testConnection() = viewModelScope.launch {
-        local.update { it.copy(testing = true, testResult = null) }
-        val (ok, text) = try {
-            val n = c.repeaterBook.testConnection()
-            true to "Connected. RepeaterBook returned $n analog repeaters for the test query."
-        } catch (e: RepeaterException) {
-            false to (e.message ?: "Connection failed.")
+    /**
+     * Removes the token and stops searching RepeaterBook, which cannot answer without it; Hearham
+     * takes over when RepeaterBook was the only source.
+     */
+    fun clearCredentials() {
+        c.credentials.clear()
+        local.update { it.copy(testResult = null) }
+        c.settings.update { s ->
+            s.copy(providers = (s.providers - RepeaterSource.REPEATERBOOK).ifEmpty { setOf(RepeaterSource.HEARHAM) })
         }
-        local.update { it.copy(testing = false, testResult = text, testOk = ok) }
+    }
+
+    /** Turns [source] on or off; the last source stays on. Turning on RepeaterBook needs a token. */
+    fun toggleSource(source: RepeaterSource) = c.settings.update { s ->
+        val next = if (source in s.providers) s.providers - source else s.providers + source
+        if (next.isEmpty()) s else s.copy(providers = next)
+    }
+
+    fun testConnection() {
+        if (local.value.testing) return
+        viewModelScope.launch {
+            local.update { it.copy(testing = true, testResult = null) }
+            val tested = c.credentials.credentials.value
+            val (ok, text) = try {
+                c.repeaterBook.testConnection()
+                true to "Connected"
+            } catch (e: RepeaterException) {
+                false to (e.message ?: "Connection failed.")
+            }
+            // The token or email changed while this ran: the outcome is for credentials no longer saved.
+            if (c.credentials.credentials.value != tested) {
+                local.update { it.copy(testing = false) }
+                return@launch
+            }
+            local.update { it.copy(testing = false, testResult = text, testOk = ok) }
+            if (ok) c.settings.update { it.copy(providers = it.providers + RepeaterSource.REPEATERBOOK) }
+        }
     }
 
     fun clearCache(source: RepeaterSource) = viewModelScope.launch {

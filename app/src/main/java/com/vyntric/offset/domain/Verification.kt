@@ -49,7 +49,12 @@ object DirectoryMerge {
     const val SAME_CALL_KM = 100.0
     private const val BUCKET_HZ = 5_000L
 
-    fun merge(primary: List<Repeater>, secondary: List<Repeater>): List<Repeater> {
+    /**
+     * [primary] with [secondary]'s listings folded into the repeaters both list. A secondary
+     * entry nobody else lists is added, except a simplex one unless [keepSimplex] (a directory
+     * of nodes lists simplex stations that are not repeaters; a provider the user picked does not).
+     */
+    fun merge(primary: List<Repeater>, secondary: List<Repeater>, keepSimplex: Boolean = false): List<Repeater> {
         if (secondary.isEmpty()) return primary
         val out = primary.toMutableList()
         val buckets = HashMap<Long, MutableList<Int>>()
@@ -63,7 +68,7 @@ object DirectoryMerge {
                 // Nearest located match first; one without coordinates only when nothing is placed.
                 .minWithOrNull(compareBy({ distanceKm(out[it], other) == null }, { distanceKm(out[it], other) }))
             if (match == null) {
-                if (other.inputHz == null) continue
+                if (other.inputHz == null && !keepSimplex) continue
                 out += other
                 index(out.lastIndex)
             } else {

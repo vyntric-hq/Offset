@@ -118,7 +118,7 @@ fun RepeatersScreen(container: AppContainer) {
     LargeTitleScreen(
         title = "Repeaters",
         actions = {
-            if (s.provider == RepeaterSource.CSV) BarAction("Import") { csvPicker.launch(arrayOf("text/*", "application/csv", "*/*")) }
+            if (RepeaterSource.CSV in s.providers) BarAction("Import") { csvPicker.launch(arrayOf("text/*", "application/csv", "*/*")) }
             BarAction("Add") { manual = true }
         },
         bottomBarHeight = if (s.selected.isNotEmpty()) 82.dp else 0.dp,
@@ -163,21 +163,21 @@ fun RepeatersScreen(container: AppContainer) {
             }
             s.results == null -> item(key = "idle") {
                 StateMessage(
-                    title = if (s.provider == RepeaterSource.CSV && s.cachedAt == null) "Import a CHIRP CSV" else "Find repeaters",
+                    title = if (s.csvOnlyEmpty) "Import a CHIRP CSV" else "Find repeaters",
                     message = when {
-                        s.provider == RepeaterSource.CSV && s.cachedAt == null -> "Tap Import to load a coordinator or personal list."
+                        s.csvOnlyEmpty -> "Tap Import to load a coordinator or personal list."
                         s.mode == SearchMode.NEAR -> "Uses this phone's GPS. Your position never leaves the phone."
                         s.mode == SearchMode.TEXT -> "Type a callsign, city or frequency, then tap Search."
                         else -> "Pick a state to list its repeaters."
                     },
                     icon = Icons.Rounded.CellTower,
                     actionLabel = when {
-                        s.provider == RepeaterSource.CSV && s.cachedAt == null -> "Import CSV"
+                        s.csvOnlyEmpty -> "Import CSV"
                         s.mode == SearchMode.NEAR -> "Search near me"
                         else -> null
                     },
                     onAction = {
-                        if (s.provider == RepeaterSource.CSV && s.cachedAt == null) csvPicker.launch(arrayOf("text/*", "*/*")) else locate()
+                        if (s.csvOnlyEmpty) csvPicker.launch(arrayOf("text/*", "*/*")) else locate()
                     },
                 )
             }
@@ -215,7 +215,7 @@ fun RepeatersScreen(container: AppContainer) {
             meLabel = s.center?.label ?: "You",
             nationwide = s.map == MapMode.ALL,
             loading = s.map == MapMode.ALL && s.mapLoading,
-            source = s.provider,
+            sources = s.providers,
             onBack = { vm.showMap(MapMode.NONE) },
             onRepeater = { detail = it },
         )
@@ -245,11 +245,11 @@ private fun Summary(s: RepeatersUiState) {
         "${String.format(java.util.Locale.US, "%,d", sum.gmrs)} GMRS",
     ).joinToString(" + ")
     val updated = sum.fetchedAtMillis?.let { ", updated ${Fmt.date(it)}" }.orEmpty()
-    val where = when (s.provider) {
+    val where = when (s.providers.singleOrNull()) {
         RepeaterSource.REPEATERBOOK -> " (states loaded so far)"
         RepeaterSource.CSV -> " (imported list)"
         RepeaterSource.HEARHAM -> if (sum.bundled) " included with the app" else ""
-        RepeaterSource.IRLP, RepeaterSource.OPENSTREETMAP -> ""
+        else -> ""
     }
     SectionFooter("$parts$where$updated", Modifier.padding(top = 10.dp))
 }
@@ -260,7 +260,7 @@ private fun Filters(s: RepeatersUiState, vm: RepeatersViewModel, locate: () -> U
     val unit = Fmt.unitLabel(s.units)
     val footer = listOfNotNull(
         s.locationError?.takeIf { s.mode == SearchMode.NEAR && s.locationMode == LocationMode.GPS },
-        if (s.service != ServiceFilter.AMATEUR && s.provider == RepeaterSource.HEARHAM)
+        if (s.service != ServiceFilter.AMATEUR && s.providers == setOf(RepeaterSource.HEARHAM))
             "Hearham lists very few GMRS repeaters. Use RepeaterBook or an imported CSV for GMRS." else null,
         if (s.mode == SearchMode.NEAR && s.radius == Settings.CLOSEST) "Closest shows the ${Settings.CLOSEST_COUNT} nearest repeaters." else null,
         if (s.mode == SearchMode.TEXT) "Searches callsign, city, county, state or frequency in the data already on this phone." else null,
@@ -414,8 +414,7 @@ private fun Attribution(s: RepeatersUiState, onRefresh: () -> Unit) {
     val uri = LocalUriHandler.current
     val colors = OffsetTheme.colors
     Column(Modifier.fillMaxWidth().padding(horizontal = Dimens.gutter * 2, vertical = 20.dp)) {
-        val src = s.provider
-        Fmt.credits(src, s.results.orEmpty()).forEach { credit ->
+        Fmt.credits(s.providers, s.results.orEmpty()).forEach { credit ->
             if (credit.url.isNotEmpty()) {
                 Text(
                     credit.attribution,
@@ -431,7 +430,7 @@ private fun Attribution(s: RepeatersUiState, onRefresh: () -> Unit) {
         if (at != null) {
             Row(Modifier.padding(top = 4.dp)) {
                 val label = when {
-                    src == RepeaterSource.CSV -> "Imported"
+                    s.providers == setOf(RepeaterSource.CSV) -> "Imported"
                     s.summary?.bundled == true && s.fromCache -> "Snapshot included with the app, from"
                     else -> "Fetched"
                 }
@@ -442,7 +441,7 @@ private fun Attribution(s: RepeatersUiState, onRefresh: () -> Unit) {
                     color = colors.secondaryLabel,
                     modifier = Modifier.weight(1f, fill = false),
                 )
-                if (src != RepeaterSource.CSV && s.results != null) {
+                if (s.providers != setOf(RepeaterSource.CSV) && s.results != null) {
                     Text("  Refresh", style = OffsetTheme.type.footnote, color = colors.accent, modifier = Modifier.tappable("Refresh repeater data", onRefresh))
                 }
             }

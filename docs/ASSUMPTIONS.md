@@ -394,3 +394,10 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     `Offset/<version> (github.com/vyntric-hq/offset; <email>)`, which fits the pattern. If Test
     connection reports a User-Agent rejection (`ua_mismatch`), the stored value needs correcting
     on RepeaterBook's side, not in Offset.
+116. **Several repeater sources at once (0.7.0, the user's request).** Hearham, RepeaterBook and an
+    imported CSV can be on together; results merge with `DirectoryMerge`, RepeaterBook first.
+    The RepeaterBook application (2026-11-18) described one data source at a time, so showing
+    RepeaterBook alongside Hearham goes beyond what was described; tell RepeaterBook if they ask.
+    RepeaterBook is still only queried for what the user searches, and its attribution shows
+    whenever its listings do. Settings from 0.6.4 and earlier (one source) carry over.
+117. **A successful Test connection turns RepeaterBook on,** and removing the token turns it off.

@@ -7,6 +7,21 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-20
+
+### Added
+
+- Several repeater sources at once: turn Hearham, RepeaterBook and an imported CSV on together
+  under Settings, Repeater sources. Results are merged, a repeater two sources list appears once,
+  and a source that fails is reported without hiding the others' results.
+- Test connection shows a spinner while it runs, then a tick or the error. Saving a token tests it
+  straight away, and a working token turns RepeaterBook on.
+
+### Changed
+
+- Settings text is much shorter.
+- A User-Agent rejection from RepeaterBook now reads as one plain line.
+
 ## [0.6.4] - 2026-11-20
 
 ### Changed

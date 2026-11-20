@@ -156,7 +156,7 @@ class ReachViewModel(private val c: AppContainer) : ViewModel() {
         }
         // A different repeater provider in Settings means different repeaters on the map.
         viewModelScope.launch {
-            c.settings.settings.map { it.provider }.distinctUntilChanged().drop(1).collect {
+            c.settings.settings.map { it.providers }.distinctUntilChanged().drop(1).collect {
                 repeaters = emptyList()
                 if (_state.value.setup != null) recompute()
             }
@@ -399,17 +399,18 @@ class ReachViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     private suspend fun loadRepeaters(origin: GeoPoint, radiusM: Double, band: ReachBand) {
-        val provider = c.settings.settings.value.provider
+        val providers = c.settings.settings.value.providers
         val query = ReachTargets.repeaterQuery(origin, radiusM, band) ?: run {
             repeaters = emptyList()
             _state.update { it.copy(repeatersNote = "Offset's repeater directories cover 2 m, 70 cm and GMRS, so no ${band.label} repeaters are shown.") }
             return
         }
         repeaters = try {
-            c.provider(provider).search(query).repeaters
-                .also { _state.update { it.copy(repeatersNote = null) } }
+            c.repeaters(providers).search(query)
+                .also { r -> _state.update { it.copy(repeatersNote = r.warnings.joinToString("\n").ifEmpty { null }) } }
+                .repeaters
         } catch (e: RepeaterException) {
-            _state.update { it.copy(repeatersNote = "Repeaters from ${provider.displayName} are not shown: ${e.message}") }
+            _state.update { it.copy(repeatersNote = "Repeaters are not shown: ${e.message}") }
             emptyList()
         }
     }

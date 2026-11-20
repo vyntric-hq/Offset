@@ -211,14 +211,15 @@ class RepeaterBookProvider(
             "auth_missing", "auth_invalid" -> "RepeaterBook did not accept the token. Check it in Settings."
             "auth_inactive", "auth_revoked" -> "This RepeaterBook token is inactive or revoked. Generate a new one."
             "auth_scope_denied" -> "This RepeaterBook token is not approved for the export API."
-            "ua_mismatch" -> "RepeaterBook rejected this app's User-Agent. Check the contact email in Settings."
+            "ua_mismatch" -> UA_REJECTED
             null -> "RepeaterBook refused the request. Check your token and email in Settings."
-            else -> "RepeaterBook refused the request ($code)."
+            else -> if (code.contains("User-Agent", ignoreCase = true)) UA_REJECTED else "RepeaterBook refused the request ($code)."
         }
     }
 
     companion object {
         const val DEFAULT_URL = "https://www.repeaterbook.com/api/export.php"
+        private const val UA_REJECTED = "RepeaterBook rejected Offset's User-Agent."
         const val DISK_TTL_MS = 24L * 60 * 60 * 1000
         const val INITIAL_BACKOFF_MS = 60_000L
         const val MAX_BACKOFF_MS = 15 * 60_000L

@@ -164,7 +164,8 @@ rely on them, and never rely on this app or its data in an emergency.
 
 ## Repeater data sources
 
-Choose under Settings, Repeater data source. Details, caching and policies are in
+Turn sources on under Settings, Repeater sources; any mix is searched together, and a repeater
+two sources list appears once. Details, caching and policies are in
 [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md).
 
 - **Hearham** (default). Free, no account. A snapshot of about 12,500 repeaters is included with

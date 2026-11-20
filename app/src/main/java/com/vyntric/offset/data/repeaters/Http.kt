@@ -60,5 +60,5 @@ object Http {
         }
 
     fun networkError(e: IOException, what: String) =
-        RepeaterException.Network("Could not reach $what. Check your connection and try again. (${e.javaClass.simpleName})", e)
+        RepeaterException.Network("Could not reach $what.", e)
 }

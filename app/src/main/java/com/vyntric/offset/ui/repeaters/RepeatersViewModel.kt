@@ -68,7 +68,7 @@ data class RepeatersUiState(
     val band: BandFilter = BandFilter.BOTH,
     val hideMixed: Boolean = false,
     val units: Units = Units.MILES,
-    val provider: RepeaterSource = RepeaterSource.HEARHAM,
+    val providers: Set<RepeaterSource> = setOf(RepeaterSource.HEARHAM),
     val supportsCounty: Boolean = false,
     val fix: Fix? = null,
     val locating: Boolean = false,
@@ -111,12 +111,15 @@ data class RepeatersUiState(
     val selectedRepeaters: List<Repeater> get() = results.orEmpty().filter { it.id in selected }
     val filters: RepeaterFilters get() = RepeaterFilters(service.services, band.bands, hideMixed)
     val mapRepeaters: List<Repeater> get() = if (map == MapMode.ALL) mapAll.orEmpty() else results.orEmpty()
+
+    /** Only the imported list is chosen and nothing has been imported yet. */
+    val csvOnlyEmpty: Boolean get() = providers == setOf(RepeaterSource.CSV) && cachedAt == null
 }
 
 class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
     private val _state = MutableStateFlow(
         c.settings.settings.value.let { s ->
-            RepeatersUiState(radius = s.defaultRadius, band = s.defaultBand, units = s.units, provider = s.provider)
+            RepeatersUiState(radius = s.defaultRadius, band = s.defaultBand, units = s.units, providers = s.providers)
         }
     )
     val state: StateFlow<RepeatersUiState> = _state.asStateFlow()
@@ -126,11 +129,11 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
 
     init {
         viewModelScope.launch {
-            c.settings.settings.map { it.provider to it.units }.distinctUntilChanged().collect { (provider, units) ->
-                val changed = provider != _state.value.provider
+            c.settings.settings.map { it.providers to it.units }.distinctUntilChanged().collect { (providers, units) ->
+                val changed = providers != _state.value.providers
                 _state.update {
                     it.copy(
-                        provider = provider, units = units, supportsCounty = c.provider(provider).supportsCounty,
+                        providers = providers, units = units, supportsCounty = c.repeaters(providers).supportsCounty,
                         results = if (changed) null else it.results, selected = if (changed) emptySet() else it.selected,
                         error = if (changed) null else it.error, county = if (changed) null else it.county,
                         mapAll = if (changed) null else it.mapAll,
@@ -242,7 +245,7 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
         searchJob = viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             try {
-                val result = c.provider(s.provider).search(query, force)
+                val result = c.repeaters(s.providers).search(query, force)
                 val counties = if (query is RepeaterQuery.ByState && query.county == null) {
                     result.repeaters.mapNotNull { it.county }.distinct().sorted()
                 } else _state.value.counties
@@ -250,9 +253,10 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
                     st.copy(
                         loading = false, results = result.repeaters, fetchedAt = result.fetchedAtMillis, fromCache = result.fromCache,
                         counties = counties, selected = st.selected.filter { id -> result.repeaters.any { it.id == id } }.toSet(),
+                        message = result.warnings.joinToString("\n").ifEmpty { st.message },
                     )
                 }
-                if (result.stale && !force && !quietRefreshTried && s.provider == RepeaterSource.HEARHAM) quietRefresh(query)
+                if (result.staleSources.isNotEmpty() && !force && !quietRefreshTried) quietRefresh(query, result.staleSources)
             } catch (e: RepeaterException) {
                 _state.update { it.copy(loading = false, error = e.message) }
             }
@@ -261,19 +265,20 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
     }
 
     /**
-     * Results were answered from data older than a week (often the bundled snapshot). Try once
-     * per session to fetch newer data in the background; offline, the local results simply stay.
+     * Results came partly from old data (often Hearham's bundled snapshot). Try once per session
+     * to fetch newer data for [stale] sources only, in the background; offline, the results stay.
      */
-    private fun quietRefresh(query: RepeaterQuery) {
+    private fun quietRefresh(query: RepeaterQuery, stale: Set<RepeaterSource>) {
         quietRefreshTried = true
         viewModelScope.launch {
-            val provider = _state.value.provider
-            val fresh = runCatching { c.provider(provider).search(query, forceRefresh = true) }.getOrNull() ?: return@launch
+            val providers = _state.value.providers
+            val fresh = runCatching { c.repeaters(providers).search(query, refresh = stale) }.getOrNull() ?: return@launch
+            if (fresh.warnings.isNotEmpty()) return@launch
             _state.update { st ->
-                if (st.provider != provider || st.loading) st else st.copy(
+                if (st.providers != providers || st.loading) st else st.copy(
                     results = fresh.repeaters, fetchedAt = fresh.fetchedAtMillis, fromCache = false,
                     selected = st.selected.filter { id -> fresh.repeaters.any { it.id == id } }.toSet(),
-                    message = "Repeater data updated from ${provider.displayName}.",
+                    message = "Repeater data updated.",
                 )
             }
             refreshSummary()
@@ -289,7 +294,7 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
         val s = _state.value
         _state.update { it.copy(mapLoading = true) }
         try {
-            val r = c.provider(s.provider).search(RepeaterQuery.All(s.filters, s.center?.pair))
+            val r = c.repeaters(s.providers).search(RepeaterQuery.All(s.filters, s.center?.pair))
             _state.update { it.copy(mapAll = r.repeaters, mapLoading = false) }
         } catch (e: RepeaterException) {
             _state.update { it.copy(mapLoading = false, message = e.message, map = MapMode.NONE) }
@@ -356,7 +361,7 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
             val summary = c.csvProvider.import(text, fileName)
             val warn = if (summary.errors.isNotEmpty()) " ${summary.errors.size} lines skipped." else ""
             _state.update { it.copy(message = "Imported ${summary.entries} entries from $fileName.$warn", results = null) }
-            if (c.settings.settings.value.provider != RepeaterSource.CSV) c.settings.update { it.copy(provider = RepeaterSource.CSV) }
+            if (RepeaterSource.CSV !in c.settings.settings.value.providers) c.settings.update { it.copy(providers = it.providers + RepeaterSource.CSV) }
             refreshSummary()
             val s = _state.value
             if (s.mode == SearchMode.NEAR && s.fix != null || s.mode == SearchMode.STATE && s.state != null) search()
@@ -370,7 +375,7 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
     fun dismissMessage() = _state.update { it.copy(message = null) }
 
     private suspend fun refreshSummary() {
-        val p = c.provider(_state.value.provider)
+        val p = c.repeaters(_state.value.providers)
         val summary = p.summary()
         _state.update { it.copy(summary = summary, cachedAt = summary?.fetchedAtMillis ?: p.cachedAtMillis()) }
     }

@@ -20,6 +20,7 @@ import com.vyntric.offset.data.repeaters.CsvImportProvider
 import com.vyntric.offset.data.repeaters.HearhamProvider
 import com.vyntric.offset.data.repeaters.Http
 import com.vyntric.offset.data.repeaters.RepeaterBookProvider
+import com.vyntric.offset.domain.CombinedRepeaterProvider
 import com.vyntric.offset.domain.BuildStaging
 import com.vyntric.offset.domain.CableState
 import com.vyntric.offset.domain.ExportImage
@@ -170,5 +171,16 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
         RepeaterSource.CSV -> csvProvider
         RepeaterSource.IRLP, RepeaterSource.OPENSTREETMAP ->
             throw IllegalArgumentException("${source.displayName} is bundled with Hearham, not a provider")
+    }
+
+    /**
+     * The chosen sources searched as one. RepeaterBook comes first, so where two sources list a
+     * repeater its details win; Hearham and an imported list add what it lacks.
+     */
+    fun repeaters(sources: Set<RepeaterSource>): CombinedRepeaterProvider =
+        CombinedRepeaterProvider(MERGE_ORDER.filter { it in sources }.ifEmpty { listOf(RepeaterSource.HEARHAM) }.map(::provider))
+
+    private companion object {
+        val MERGE_ORDER = listOf(RepeaterSource.REPEATERBOOK, RepeaterSource.HEARHAM, RepeaterSource.CSV)
     }
 }

@@ -78,7 +78,7 @@ fun RepeaterMapScreen(
     nationwide: Boolean,
     meLabel: String = "You",
     loading: Boolean,
-    source: RepeaterSource,
+    sources: Set<RepeaterSource>,
     onBack: () -> Unit,
     onRepeater: (Repeater) -> Unit,
 ) {
@@ -171,7 +171,7 @@ fun RepeaterMapScreen(
                         Text("  $label", style = OffsetTheme.type.footnote, color = colors.label)
                     }
                 }
-            Fmt.credits(source, repeaters).forEach {
+            Fmt.credits(sources, repeaters).forEach {
                 Text(it.attribution, style = OffsetTheme.type.caption, color = colors.secondaryLabel)
             }
         }
