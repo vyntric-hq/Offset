@@ -50,7 +50,8 @@ class RepeaterBookProvider(
     private val client: OkHttpClient,
     private val cacheDir: File,
     private val credentials: () -> RepeaterBookCredentials,
-    private val userAgentPrefix: String,
+    /** The User-Agent for a request made with the user's contact [email]. */
+    private val userAgent: (email: String) -> String,
     private val clock: Clock,
     private val baseUrl: HttpUrl = DEFAULT_URL.toHttpUrl(),
 ) : RepeaterProvider {
@@ -166,7 +167,7 @@ class RepeaterBookProvider(
         val request = Request.Builder()
             .url(url)
             .header("X-RB-App-Token", creds.token)
-            .header("User-Agent", "$userAgentPrefix; ${creds.email})")
+            .header("User-Agent", userAgent(creds.email))
             .header("Accept", "application/json")
             .build()
         return try {
@@ -206,7 +207,7 @@ class RepeaterBookProvider(
 
     private fun authMessage(body: String?): String {
         val code = body?.let { runCatching { json.parseToJsonElement(it).jsonObject }.getOrNull() }
-            ?.let { o -> (o["error"] ?: o["code"] ?: o["message"])?.let { (it as? JsonPrimitive)?.contentOrNull } }
+            ?.let { o -> (o["error_code"] ?: o["error"] ?: o["code"] ?: o["message"])?.let { (it as? JsonPrimitive)?.contentOrNull } }
         return when (code) {
             "auth_missing", "auth_invalid" -> "RepeaterBook did not accept the token. Check it in Settings."
             "auth_inactive", "auth_revoked" -> "This RepeaterBook token is inactive or revoked. Generate a new one."
@@ -219,6 +220,19 @@ class RepeaterBookProvider(
 
     companion object {
         const val DEFAULT_URL = "https://www.repeaterbook.com/api/export.php"
+
+        /**
+         * The User-Agent RepeaterBook stored when it approved Offset (app ID 152, 2026-11-20): the
+         * whole application answer, matched as a prefix, so only this exact text passes its
+         * check (tested live 2026-11-20). Used until RepeaterBook changes the approved value to
+         * `Offset/`; then go back to [standardUserAgent]. Character for character; do not edit.
+         */
+        const val APPROVED_USER_AGENT =
+            "Offset/<version> (github.com/vyntric-hq/offset; <user's contact email>) Please approve the pattern: " +
+                "Offset/* (github.com/vyntric-hq/offset; *) Example: Offset/0.3.3 (github.com/vyntric-hq/offset; user@example.com)"
+
+        /** The User-Agent RepeaterBook's policy asks for: app, version, project and contact email. */
+        fun standardUserAgent(version: String, project: String, email: String) = "Offset/$version ($project; $email)"
         private const val UA_REJECTED = "RepeaterBook rejected Offset's User-Agent."
         const val DISK_TTL_MS = 24L * 60 * 60 * 1000
         const val INITIAL_BACKOFF_MS = 60_000L

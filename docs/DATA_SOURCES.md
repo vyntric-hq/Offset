@@ -153,7 +153,11 @@ tell your users to generate tokens for your app.
 **Status.** RepeaterBook approved Offset as a distributed app on 2026-11-20 (app ID 152). No
 shared `app_` token was issued: each user signs in at `repeaterbook.com/user/api_apps.php`, picks
 Offset, generates an `rbuapp_` token and pastes it into Settings with their email. The approved
-User-Agent is `Offset/<version> (github.com/vyntric-hq/offset; <user's email>)`, matched by prefix.
+User-Agent was meant to be `Offset/<version> (github.com/vyntric-hq/offset; <user's email>)`,
+matched by prefix, but RepeaterBook stored the whole application answer, so only that exact text
+passes (tested 2026-11-20). Until RepeaterBook changes the approved value to `Offset/`, Offset
+sends that text (`RepeaterBookProvider.APPROVED_USER_AGENT`), without its version or the user's
+email. A correction has been requested.
 
 The RepeaterBook test fixture (`app/src/test/resources/repeaterbook-fixture.json`) is synthetic;
 no RepeaterBook data is stored in this repository.

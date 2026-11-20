@@ -7,6 +7,14 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-20
+
+### Fixed
+
+- RepeaterBook searches work. RepeaterBook only accepts the exact User-Agent text it stored when
+  it approved Offset, so Offset sends that text until RepeaterBook corrects it.
+- RepeaterBook's error codes are read from the field it actually uses (`error_code`).
+
 ## [0.7.0] - 2026-11-20
 
 ### Added

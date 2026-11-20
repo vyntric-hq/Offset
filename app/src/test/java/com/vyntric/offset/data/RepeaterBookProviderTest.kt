@@ -32,7 +32,7 @@ class RepeaterBookProviderTest {
 
     private fun provider() = RepeaterBookProvider(
         Http.authenticatedClient(), tmp.root.resolve("rb"), { creds },
-        "Offset/0.1.0 (github.com/vyntric-hq/offset", fixedClock, server.url("/api/export.php"),
+        { RepeaterBookProvider.standardUserAgent("0.1.0", "github.com/vyntric-hq/offset", it) }, fixedClock, server.url("/api/export.php"),
     )
 
     @After fun stop() = server.shutdown()
@@ -148,6 +148,36 @@ class RepeaterBookProviderTest {
         } catch (e: RepeaterException.Auth) {
             assertTrue(e.message!!.contains("User-Agent"))
         }
+    }
+
+    @Test fun `RepeaterBook's error_code field is read`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(403).setBody(
+            "{\"ok\":false,\"error_code\":\"ua_mismatch\",\"message\":\"Application User-Agent policy check failed.\"}"
+        ))
+        try {
+            provider().search(california)
+            fail("expected Auth")
+        } catch (e: RepeaterException.Auth) {
+            assertEquals("RepeaterBook rejected Offset's User-Agent.", e.message)
+        }
+    }
+
+    @Test fun `the approved User-Agent is the exact text that passed RepeaterBook's check`() {
+        // The value that returned HTTP 200 from export.php on 2026-11-20.
+        assertEquals(
+            "Offset/<version> (github.com/vyntric-hq/offset; <user's contact email>) Please approve the pattern: Offset/* " +
+                "(github.com/vyntric-hq/offset; *) Example: Offset/0.3.3 (github.com/vyntric-hq/offset; user@example.com)",
+            RepeaterBookProvider.APPROVED_USER_AGENT,
+        )
+    }
+
+    @Test fun `the approved User-Agent goes over the wire unchanged`() = runTest {
+        server.enqueue(MockResponse().setBody(fixture))
+        RepeaterBookProvider(
+            Http.authenticatedClient(), tmp.root.resolve("rb2"), { creds },
+            { RepeaterBookProvider.APPROVED_USER_AGENT }, fixedClock, server.url("/api/export.php"),
+        ).search(california)
+        assertEquals(RepeaterBookProvider.APPROVED_USER_AGENT, server.takeRequest().getHeader("User-Agent"))
     }
 
     @Test fun `not configured until token and email are present`() = runTest {

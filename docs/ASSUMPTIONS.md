@@ -401,3 +401,10 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     RepeaterBook is still only queried for what the user searches, and its attribution shows
     whenever its listings do. Settings from 0.6.4 and earlier (one source) carry over.
 117. **A successful Test connection turns RepeaterBook on,** and removing the token turns it off.
+118. **Offset sends RepeaterBook's stored approval text as its User-Agent (0.7.1, the user's
+    decision).** A live test on 2026-11-20 showed every other User-Agent rejected with
+    `ua_mismatch`: RepeaterBook requires a request to start with the whole stored text, which
+    includes placeholders and a note. Offset sends exactly that text until RepeaterBook changes
+    the approved value to the prefix `Offset/`; then it goes back to
+    `RepeaterBookProvider.standardUserAgent`, with the version and the user's email. The email
+    is still required in Settings.

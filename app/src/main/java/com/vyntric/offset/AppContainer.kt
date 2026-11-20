@@ -112,7 +112,9 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
         listings = bundledListings(app),
     )
     val repeaterBook = RepeaterBookProvider(
-        Http.authenticatedClient(), File(repeaterDir, "repeaterbook"), { credentials.credentials.value }, userAgentBase, clock,
+        Http.authenticatedClient(), File(repeaterDir, "repeaterbook"), { credentials.credentials.value },
+        // Until RepeaterBook corrects the approved value, only the exact approved text passes.
+        { RepeaterBookProvider.APPROVED_USER_AGENT }, clock,
     )
     val csvProvider = CsvImportProvider(File(repeaterDir, "imported-csv.json"), clock)
 
