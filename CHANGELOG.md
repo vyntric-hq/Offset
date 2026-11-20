@@ -7,6 +7,14 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-11-20
+
+### Changed
+
+- RepeaterBook has approved Offset, so a RepeaterBook token for Offset can now be generated on
+  RepeaterBook's token page. The Settings instructions are shorter and no longer say approval is
+  pending.
+
 ## [0.6.3] - 2026-11-20
 
 ### Changed

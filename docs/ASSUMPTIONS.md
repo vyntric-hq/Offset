@@ -85,8 +85,8 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
 25. **RepeaterBook test connection** queries the District of Columbia, the smallest state result.
 26. **RepeaterBook field names** follow the export format as published in RepeaterBook's API docs
     and used by CHIRP (`Frequency`, `Input Freq`, `PL`, `TSQ`, `Nearest City`, `County`, `State`,
-    `Lat`, `Long`, `Callsign`, `Operational Status`, `FM Analog`, `Last Update`). Offset has not
-    yet been approved by RepeaterBook, so this was not tested against the live API.
+    `Lat`, `Long`, `Callsign`, `Operational Status`, `FM Analog`, `Last Update`). RepeaterBook
+    approved Offset on 2026-11-20 (item 115); this is not yet tested against the live API.
 27. **CSV files without coordinates list every in-band entry** for "near me" and "by state",
     since an empty result would be useless.
 28. **Distances are great circle** from the phone's fix; bearings are initial true bearings.
@@ -388,3 +388,9 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     stock firmware several times with 0.6.1 (2026-11-19), with the write verified. The app no
     longer labels it experimental. The privacy and signalling values (item 106) are still
     unchecked on air. nicFW950 stays experimental until it is run on a radio.
+115. **RepeaterBook approval (app ID 152, 2026-11-20).** The approval email's User-Agent field holds
+    the whole answer from the application form, including the request to approve the pattern
+    `Offset/* (github.com/vyntric-hq/offset; *)`, with prefix matching. Offset sends
+    `Offset/<version> (github.com/vyntric-hq/offset; <email>)`, which fits the pattern. If Test
+    connection reports a User-Agent rejection (`ua_mismatch`), the stored value needs correcting
+    on RepeaterBook's side, not in Offset.

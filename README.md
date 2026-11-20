@@ -178,7 +178,7 @@ Choose under Settings, Repeater data source. Details, caching and policies are i
   [token page](https://www.repeaterbook.com/user/api_apps.php) and sign in (the sign-in page is
   RepeaterBook's own, called Vista). 3. Pick Offset, generate a token and copy it; it is shown
   once. 4. Paste it with your contact email under Settings, RepeaterBook, and tap Test
-  connection. Offset is listed there only after RepeaterBook approves it; see
+  connection. RepeaterBook approved Offset on 2026-11-20; see
   [RepeaterBook's API page](https://www.repeaterbook.com/wiki/doku.php?id=api). The
   token is stored encrypted and sent only to repeaterbook.com. Results are cached for 24 hours
   per state. Data courtesy of [RepeaterBook.com](https://www.repeaterbook.com). RepeaterBook

@@ -89,13 +89,11 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
             InsetSection(
                 header = "RepeaterBook",
                 footer = if (!s.secureStorage) "Encrypted storage is unavailable on this device, so a token cannot be saved."
-                else "Optional. Hearham, IRLP and OpenStreetMap data work without an account.\n\n" +
-                    "To add RepeaterBook: 1. Create a RepeaterBook account (RepeaterBook requires an amateur or US GMRS " +
-                    "callsign). 2. Tap Token page and sign in; the sign-in page is RepeaterBook's own, called Vista. " +
-                    "3. Pick Offset, tap generate, and copy the token (it is shown once). 4. Paste it here with your email " +
-                    "and tap Test connection. Offset appears on that page only once RepeaterBook has approved it.\n\n" +
-                    "The token is stored encrypted on this phone and only ever sent to repeaterbook.com. Your email goes " +
-                    "in the User-Agent, as RepeaterBook requires.",
+                else "Optional. 1. Create a RepeaterBook account (it needs an amateur or US GMRS callsign). " +
+                    "2. Tap Token page and sign in. 3. Pick Offset, generate a token and copy it; it is shown once. " +
+                    "4. Paste it here with your email and tap Test connection.\n\n" +
+                    "The token is stored encrypted and sent only to repeaterbook.com. Your email goes in the " +
+                    "User-Agent, as RepeaterBook requires.",
             ) {
                 cell {
                     TextFieldRow("Token", token, { token = it.trim() }, placeholder = "rbuapp_...",

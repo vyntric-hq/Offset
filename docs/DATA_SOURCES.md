@@ -105,7 +105,7 @@ closed-source app from Google Play and a paid RepeaterBook Connect subscription,
 Offset depend on a non-free app (F-Droid's NonFreeDep); the app decides the search area and
 filters, so Offset's state, county and text searches would only filter what it returns; it has
 one tone per repeater, undocumented status and mode codes, no stated GMRS coverage, and no
-published terms for third-party use. Offset waits for RepeaterBook's API approval instead.
+published terms for third-party use. Offset uses RepeaterBook's API instead.
 
 **Not used.** RepeaterBook, the ARRL Repeater Directory, RFinder and myGMRS do not permit
 redistribution and are never scraped. openrepeater.org publishes its data under CC0 but offers
@@ -144,8 +144,12 @@ of these points.
 Offset (`github.com/vyntric-hq/offset`, with the User-Agent above) does not extend to forks,
 rebuilds under another name or derived apps. If you fork Offset and keep RepeaterBook support,
 you must apply to RepeaterBook for your own approval, change the User-Agent to name your app, and
-tell your users to generate tokens for your app. Until the Offset application is approved by
-RepeaterBook, users cannot generate a token for it and this source stays off.
+tell your users to generate tokens for your app.
+
+**Status.** RepeaterBook approved Offset as a distributed app on 2026-11-20 (app ID 152). No
+shared `app_` token was issued: each user signs in at `repeaterbook.com/user/api_apps.php`, picks
+Offset, generates an `rbuapp_` token and pastes it into Settings with their email. The approved
+User-Agent is `Offset/<version> (github.com/vyntric-hq/offset; <user's email>)`, matched by prefix.
 
 The RepeaterBook test fixture (`app/src/test/resources/repeaterbook-fixture.json`) is synthetic;
 no RepeaterBook data is stored in this repository.
