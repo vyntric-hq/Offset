@@ -4,6 +4,18 @@
  */
 package com.vyntric.offset.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -78,6 +90,7 @@ fun LargeTitleScreen(
     listState: LazyListState = rememberLazyListState(),
     bottomBar: (@Composable () -> Unit)? = null,
     bottomBarHeight: Dp = 0.dp,
+    toast: Toast? = null,
     content: LazyListScope.() -> Unit,
 ) {
     val colors = OffsetTheme.colors
@@ -163,6 +176,8 @@ fun LargeTitleScreen(
                 CompositionLocalProvider(LocalBottomInset provides 0.dp) { bottomBar() }
             }
         }
+
+        ToastHost(toast, Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset + bottomBarHeight + 12.dp))
     }
 }
 
@@ -226,4 +241,41 @@ fun BarAction(text: String, enabled: Boolean = true, onClick: () -> Unit) {
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
     )
+}
+
+/**
+ * A short confirmation or failure shown over the bottom of a screen, wherever it is scrolled.
+ * Each one is distinct, so the same text shown twice restarts its display time.
+ */
+data class Toast(val text: String, val isError: Boolean = false, val id: Long = nextToastId.getAndIncrement())
+
+private val nextToastId = java.util.concurrent.atomic.AtomicLong()
+
+@Composable
+private fun ToastHost(toast: Toast?, modifier: Modifier) {
+    val colors = OffsetTheme.colors
+    // Keeps the last toast on screen while it fades out.
+    var shown by remember { mutableStateOf(toast) }
+    if (toast != null) shown = toast
+    AnimatedVisibility(toast != null, modifier = modifier, enter = fadeIn() + slideInVertically { it / 2 }, exit = fadeOut()) {
+        val t = shown ?: return@AnimatedVisibility
+        Row(
+            Modifier
+                .padding(horizontal = Dimens.gutter)
+                .shadow(8.dp, RoundedCornerShape(Dimens.groupCorner))
+                .background(colors.surfaceRaised, RoundedCornerShape(Dimens.groupCorner))
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .semantics { liveRegion = LiveRegionMode.Polite },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(
+                if (t.isError) Icons.Rounded.ErrorOutline else Icons.Rounded.CheckCircle,
+                contentDescription = null,
+                tint = if (t.isError) colors.destructive else colors.success,
+                modifier = Modifier.size(22.dp),
+            )
+            Text(t.text, style = OffsetTheme.type.subhead, color = colors.label)
+        }
+    }
 }

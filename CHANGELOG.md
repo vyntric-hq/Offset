@@ -7,6 +7,15 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.2] - 2026-11-20
+
+### Changed
+
+- Search shows a spinner while it finds your location and searches, then a tick with the number
+  of repeaters found, or a warning when the search failed.
+- Confirmations and errors on Repeaters, Settings and Images appear as a short notice at the
+  bottom of the screen, so they are seen wherever the screen is scrolled.
+
 ## [0.7.1] - 2026-11-20
 
 ### Fixed

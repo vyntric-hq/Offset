@@ -59,6 +59,8 @@ import com.vyntric.offset.ui.components.ToggleRow
 import com.vyntric.offset.ui.channel.ChannelEditorSheet
 import com.vyntric.offset.ui.channel.ChoiceRow
 import com.vyntric.offset.ui.components.BarAction
+import com.vyntric.offset.ui.components.ActionOutcome
+import com.vyntric.offset.ui.components.ActionRow
 import com.vyntric.offset.ui.components.ButtonRow
 import com.vyntric.offset.ui.components.CellRow
 import com.vyntric.offset.ui.components.DetailRow
@@ -122,6 +124,7 @@ fun RepeatersScreen(container: AppContainer) {
             BarAction("Add") { manual = true }
         },
         bottomBarHeight = if (s.selected.isNotEmpty()) 82.dp else 0.dp,
+        toast = s.message,
         bottomBar = if (s.selected.isEmpty()) null else {
             {
                 Box(Modifier.fillMaxWidth().background(colors.chrome).padding(horizontal = Dimens.gutter, vertical = 16.dp)) {
@@ -146,9 +149,6 @@ fun RepeatersScreen(container: AppContainer) {
             }
         }
 
-        item(key = "message") {
-            s.message?.let { SectionFooter(it, Modifier.padding(top = 8.dp)) }
-        }
 
         when {
             s.loading -> item(key = "loading") {
@@ -361,7 +361,19 @@ private fun Filters(s: RepeatersUiState, vm: RepeatersViewModel, locate: () -> U
             )
         }
         cell {
-            ButtonRow(if (s.results == null) "Search" else "Search again", enabled = !s.loading) {
+            ActionRow(
+                if (s.results == null && s.error == null) "Search" else "Search again",
+                pending = s.loading || s.locating,
+                pendingTitle = if (s.locating) "Finding your location..." else "Searching...",
+                outcome = when {
+                    s.locationError != null && s.mode == SearchMode.NEAR && s.locationMode == LocationMode.GPS ->
+                        ActionOutcome("No location", ok = false)
+                    s.searchedFor != s.searchInputs -> null
+                    s.error != null -> ActionOutcome("Search failed", ok = false)
+                    s.results != null -> ActionOutcome(Fmt.repeaterCount(s.results.size), ok = true)
+                    else -> null
+                },
+            ) {
                 if (s.mode == SearchMode.NEAR && s.locationMode == LocationMode.GPS && s.fix == null) locate() else vm.search()
             }
         }

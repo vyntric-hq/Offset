@@ -70,8 +70,8 @@ fun ImagesScreen(container: AppContainer, onOpen: (Long) -> Unit) {
                 runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
             }
             when {
-                bytes == null -> vm.say("Could not read that file.")
-                bytes.size > MAX_IMPORT_BYTES -> vm.say("That file is too large to be a radio image.")
+                bytes == null -> vm.say("Could not read that file.", isError = true)
+                bytes.size > MAX_IMPORT_BYTES -> vm.say("That file is too large to be a radio image.", isError = true)
                 else -> vm.import(bytes, name, onOpen)
             }
         }
@@ -81,8 +81,7 @@ fun ImagesScreen(container: AppContainer, onOpen: (Long) -> Unit) {
         if (s.message != null) { kotlinx.coroutines.delay(4_000); vm.dismissMessage() }
     }
 
-    LargeTitleScreen(title = "Images", actions = { BarAction("Import") { picker.launch(arrayOf("application/octet-stream", "*/*")) } }) {
-        s.message?.let { msg -> item(key = "message") { SectionFooter(msg) } }
+    LargeTitleScreen(title = "Images", toast = s.message, actions = { BarAction("Import") { picker.launch(arrayOf("application/octet-stream", "*/*")) } }) {
         if (s.loaded && s.library.isEmpty() && s.backups.isEmpty()) {
             item(key = "empty") {
                 GroupedCell(CellPosition.ONLY) {

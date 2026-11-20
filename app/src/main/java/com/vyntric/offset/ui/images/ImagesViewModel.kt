@@ -4,6 +4,7 @@
  */
 package com.vyntric.offset.ui.images
 
+import com.vyntric.offset.ui.components.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vyntric.offset.AppContainer
@@ -26,11 +27,11 @@ data class ImagesUiState(
     val loaded: Boolean = false,
     val library: List<ImageSummary> = emptyList(),
     val backups: List<ImageSummary> = emptyList(),
-    val message: String? = null,
+    val message: Toast? = null,
 )
 
 class ImagesViewModel(private val c: AppContainer) : ViewModel() {
-    private val message = MutableStateFlow<String?>(null)
+    private val message = MutableStateFlow<Toast?>(null)
 
     val state: StateFlow<ImagesUiState> = combine(c.images.observeAll(), message) { all, msg ->
         ImagesUiState(true, all.filter { it.kind != ImageKind.BACKUP }, all.filter { it.kind == ImageKind.BACKUP }, msg)
@@ -38,14 +39,14 @@ class ImagesViewModel(private val c: AppContainer) : ViewModel() {
 
     fun import(bytes: ByteArray, fileName: String, onSaved: (Long) -> Unit) = viewModelScope.launch {
         when (val r = c.importImage(bytes, fileName)) {
-            is ImportImage.Outcome.Saved -> { message.value = "Imported \"${r.name}\"."; onSaved(r.id) }
-            is ImportImage.Outcome.Rejected -> message.value = r.message
+            is ImportImage.Outcome.Saved -> { message.value = Toast("Imported \"${r.name}\"."); onSaved(r.id) }
+            is ImportImage.Outcome.Rejected -> message.value = Toast(r.message, isError = true)
         }
     }
 
-    fun delete(id: Long) = viewModelScope.launch { c.images.delete(id); message.value = "Image deleted." }
+    fun delete(id: Long) = viewModelScope.launch { c.images.delete(id); message.value = Toast("Image deleted.") }
 
-    fun say(text: String) { message.value = text }
+    fun say(text: String, isError: Boolean = false) { message.value = Toast(text, isError) }
     fun dismissMessage() { message.value = null }
 }
 
@@ -54,7 +55,7 @@ data class ImageDetailUiState(
     val missing: Boolean = false,
     val connectedIdent: String? = null,
     val busy: Boolean = false,
-    val message: String? = null,
+    val message: Toast? = null,
     val connectedDriver: com.vyntric.offset.protocol.RadioDriver? = null,
 ) {
     /** Why restore is not possible right now, or null when it is. Rule 2 is enforced again in WriteRadio. */
@@ -72,7 +73,7 @@ data class ImageDetailUiState(
 }
 
 class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : ViewModel() {
-    private val message = MutableStateFlow<String?>(null)
+    private val message = MutableStateFlow<Toast?>(null)
 
     val state: StateFlow<ImageDetailUiState> = combine(
         c.images.observe(id), c.radioSession.last, c.operations.state, message,
@@ -96,14 +97,14 @@ class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : 
         try {
             c.images.updateImage(id, img.withChannels(slots))
         } catch (e: IllegalArgumentException) {
-            message.value = "The channel could not be stored: ${e.message}"
+            message.value = Toast("The channel could not be stored: ${e.message}", isError = true)
         }
     }
 
     fun firstFreeSlot(): Int? = state.value.image?.image?.channels()?.indexOfFirst { it == null }?.takeIf { it >= 0 }
 
     fun duplicate(onDone: (Long) -> Unit) = viewModelScope.launch {
-        c.images.duplicate(id)?.let { message.value = "Duplicated."; onDone(it) }
+        c.images.duplicate(id)?.let { message.value = Toast("Duplicated."); onDone(it) }
     }
 
     fun delete() = viewModelScope.launch { c.images.delete(id) }
@@ -115,13 +116,13 @@ class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : 
         val img = current() ?: return@launch
         val (updated, errors) = c.importImage.applyCsv(img, text)
         c.images.updateImage(id, updated)
-        message.value = "Imported CSV into this image." + if (errors.isNotEmpty()) " ${errors.size} problems: ${errors.first()}" else ""
+        message.value = Toast("Imported CSV into this image." + if (errors.isNotEmpty()) " ${errors.size} problems: ${errors.first()}" else "", isError = errors.isNotEmpty())
     }
 
     fun loadIntoStaging() = viewModelScope.launch {
         val img = current() ?: return@launch
         c.staging.put(c.buildStaging.fromImage(img, ChannelOrigin.IMAGE))
-        message.value = "Staging now holds this image's ${img.usedChannelCount} channels."
+        message.value = Toast("Staging now holds this image's ${img.usedChannelCount} channels.")
     }
 
     /** Rule 6 happened on the confirmation sheet. */
@@ -134,9 +135,9 @@ class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : 
             confirmedIdentity = s.connectedIdent,
             driver = stored.image.driver,
         )
-        if (!c.operations.write(request)) message.value = "Another radio operation is running."
+        if (!c.operations.write(request)) message.value = Toast("Another radio operation is running.", isError = true)
     }
 
-    fun say(text: String) { message.value = text }
+    fun say(text: String, isError: Boolean = false) { message.value = Toast(text, isError) }
     fun dismissMessage() { message.value = null }
 }

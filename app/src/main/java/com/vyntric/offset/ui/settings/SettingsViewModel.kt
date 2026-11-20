@@ -4,6 +4,7 @@
  */
 package com.vyntric.offset.ui.settings
 
+import com.vyntric.offset.ui.components.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vyntric.offset.AppContainer
@@ -33,7 +34,7 @@ data class SettingsUiState(
     val terrainBytes: Long = 0,
     /** A state's terrain being saved for offline use: which, and how far along. */
     val terrainDownload: Pair<UsState, Float>? = null,
-    val message: String? = null,
+    val message: Toast? = null,
 )
 
 class SettingsViewModel(private val c: AppContainer) : ViewModel() {
@@ -95,14 +96,14 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
 
     fun clearCache(source: RepeaterSource) = viewModelScope.launch {
         c.provider(source).clearCache()
-        local.update { it.copy(message = "${source.displayName} cache cleared.") }
+        local.update { it.copy(message = Toast("${source.displayName} cache cleared.")) }
         refreshCaches()
     }
 
     fun resetSimulatedRadio() = viewModelScope.launch {
         c.simulatedLink.reset()
         c.radioSession.clear()
-        local.update { it.copy(message = "Simulated radio reset to its factory image.") }
+        local.update { it.copy(message = Toast("Simulated radio reset to its factory image.")) }
     }
 
     /** Rough size of saving [state]'s terrain, for the picker. */
@@ -118,10 +119,10 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
                 val failed = c.terrain.download(state.maxLat, state.minLon, state.minLat, state.maxLon) { done, total ->
                     local.update { it.copy(terrainDownload = state to done.toFloat() / total) }
                 }
-                if (failed == 0) "Terrain for ${state.displayName} saved for offline use."
-                else "Saved most of ${state.displayName}; $failed tiles could not be fetched. Try again with a better connection."
+                if (failed == 0) Toast("Terrain for ${state.displayName} saved for offline use.")
+                else Toast("Saved most of ${state.displayName}; $failed tiles could not be fetched.", isError = true)
             } catch (e: java.io.IOException) {
-                "Could not save terrain for ${state.displayName}: ${e.message ?: "storage error"}."
+                Toast("Could not save terrain for ${state.displayName}: ${e.message ?: "storage error"}.", isError = true)
             } finally {
                 local.update { it.copy(terrainDownload = null) }
             }
@@ -132,7 +133,7 @@ class SettingsViewModel(private val c: AppContainer) : ViewModel() {
 
     fun clearTerrain() = viewModelScope.launch {
         c.terrain.clear()
-        local.update { it.copy(message = "Saved terrain removed.") }
+        local.update { it.copy(message = Toast("Saved terrain removed.")) }
         refreshCaches()
     }
 

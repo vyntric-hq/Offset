@@ -105,7 +105,13 @@ object Fmt {
         Units.KILOMETERS -> String.format(Locale.US, if (km < 10) "%.1f km" else "%.0f km", km)
     }
 
-    fun unitLabel(units: Units) = if (units == Units.MILES) "mi" else "km"
+    fun repeaterCount(n: Int): String = when (n) {
+        0 -> "No repeaters found"
+        1 -> "1 repeater found"
+        else -> String.format(Locale.US, "%,d repeaters found", n)
+    }
+
+        fun unitLabel(units: Units) = if (units == Units.MILES) "mi" else "km"
 
     fun radiusKm(value: Int, units: Units): Double = if (units == Units.MILES) value * Geo.KM_PER_MILE else value.toDouble()
 

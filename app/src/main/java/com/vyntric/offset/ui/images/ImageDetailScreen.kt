@@ -83,7 +83,7 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
             val ok = withContext(Dispatchers.IO) {
                 runCatching { context.contentResolver.openOutputStream(uri, "wt")?.use { it.write(bytes) } != null }.getOrDefault(false)
             }
-            vm.say(if (ok) "Exported $label." else "Could not write the file.")
+            vm.say(if (ok) "Exported $label." else "Could not write the file.", isError = !ok)
         }
     }
     val exportImg = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -97,7 +97,7 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
             val text = withContext(Dispatchers.IO) {
                 runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes().decodeToString() } }.getOrNull()
             }
-            if (text == null) vm.say("Could not read that file.") else vm.importCsv(text)
+            if (text == null) vm.say("Could not read that file.", isError = true) else vm.importCsv(text)
         }
     }
 
@@ -111,6 +111,7 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
         title = stored?.name ?: "Image",
         onBack = onBack,
         backLabel = "Images",
+        toast = s.message,
         actions = {
             if (stored != null) {
                 BarAction("Add", enabled = vm.firstFreeSlot() != null) { vm.firstFreeSlot()?.let { editing = Editing.Slot(it, null) } }
@@ -124,7 +125,6 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
             return@LargeTitleScreen
         }
         val image = stored.image
-        s.message?.let { m -> item(key = "msg") { SectionFooter(m) } }
 
         item(key = "info") {
             InsetSection(header = "Radio") {

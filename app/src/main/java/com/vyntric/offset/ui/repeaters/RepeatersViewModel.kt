@@ -4,6 +4,7 @@
  */
 package com.vyntric.offset.ui.repeaters
 
+import com.vyntric.offset.ui.components.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vyntric.offset.AppContainer
@@ -85,7 +86,7 @@ data class RepeatersUiState(
     val cachedAt: Long? = null,
     val summary: DataSummary? = null,
     val selected: Set<String> = emptySet(),
-    val message: String? = null,
+    val message: Toast? = null,
     val map: MapMode = MapMode.NONE,
     val mapAll: List<Repeater>? = null,
     val mapLoading: Boolean = false,
@@ -98,7 +99,13 @@ data class RepeatersUiState(
     val countyOptions: List<County> = emptyList(),
     val manualError: String? = null,
     val liveTracking: Boolean = false,
+    /** [searchInputs] when the shown results or error were produced. */
+    val searchedFor: List<Any?>? = null,
 ) {
+    /** Everything a search depends on; when it differs from [searchedFor] the outcome is out of date. */
+    val searchInputs: List<Any?>
+        get() = listOf(mode, text.trim(), state, county, center?.pair, radius, units, filters, providers, locationMode)
+
     /** The centre of a "near me" search: the GPS fix or the typed or chosen place. */
     val center: SearchCenter?
         get() = when (locationMode) {
@@ -244,6 +251,7 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
+            val inputs = s.searchInputs
             try {
                 val result = c.repeaters(s.providers).search(query, force)
                 val counties = if (query is RepeaterQuery.ByState && query.county == null) {
@@ -253,12 +261,13 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
                     st.copy(
                         loading = false, results = result.repeaters, fetchedAt = result.fetchedAtMillis, fromCache = result.fromCache,
                         counties = counties, selected = st.selected.filter { id -> result.repeaters.any { it.id == id } }.toSet(),
-                        message = result.warnings.joinToString("\n").ifEmpty { st.message },
+                        message = result.warnings.joinToString("\n").ifEmpty { null }?.let { Toast(it, isError = true) } ?: st.message,
+                        searchedFor = inputs,
                     )
                 }
                 if (result.staleSources.isNotEmpty() && !force && !quietRefreshTried) quietRefresh(query, result.staleSources)
             } catch (e: RepeaterException) {
-                _state.update { it.copy(loading = false, error = e.message) }
+                _state.update { it.copy(loading = false, error = e.message, searchedFor = inputs) }
             }
             refreshSummary()
         }
@@ -272,13 +281,16 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
         quietRefreshTried = true
         viewModelScope.launch {
             val providers = _state.value.providers
+            val searched = _state.value.searchedFor
             val fresh = runCatching { c.repeaters(providers).search(query, refresh = stale) }.getOrNull() ?: return@launch
             if (fresh.warnings.isNotEmpty()) return@launch
             _state.update { st ->
-                if (st.providers != providers || st.loading) st else st.copy(
+                // Only newer data for the search on screen; never over a later search's results.
+                val current = st.searchedFor == searched && st.searchInputs == searched
+                if (st.providers != providers || st.loading || !current) st else st.copy(
                     results = fresh.repeaters, fetchedAt = fresh.fetchedAtMillis, fromCache = false,
                     selected = st.selected.filter { id -> fresh.repeaters.any { it.id == id } }.toSet(),
-                    message = "Repeater data updated.",
+                    message = Toast("Repeater data updated."),
                 )
             }
             refreshSummary()
@@ -297,7 +309,7 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
             val r = c.repeaters(s.providers).search(RepeaterQuery.All(s.filters, s.center?.pair))
             _state.update { it.copy(mapAll = r.repeaters, mapLoading = false) }
         } catch (e: RepeaterException) {
-            _state.update { it.copy(mapLoading = false, message = e.message, map = MapMode.NONE) }
+            _state.update { it.copy(mapLoading = false, message = Toast(e.message.orEmpty(), isError = true), map = MapMode.NONE) }
         }
         refreshSummary()
     }
@@ -321,7 +333,7 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
                 r.duplicates.takeIf { it > 0 }?.let { "$it already staged." },
                 r.overflow.takeIf { it > 0 }?.let { "$it did not fit (${target.capacity} channel limit)." },
             )
-            _state.update { it.copy(selected = emptySet(), message = parts.joinToString(" ")) }
+            _state.update { it.copy(selected = emptySet(), message = Toast(parts.joinToString(" "))) }
         }
     }
 
@@ -334,11 +346,11 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
             val target = c.stagingTarget()
             val r = c.staging.update { list -> c.buildStaging.add(list, listOf(channel), ChannelOrigin.MANUAL, target).let { it.staging to it } }
             _state.update {
-                it.copy(message = when {
+                it.copy(message = Toast(when {
                     r.overflow > 0 -> "Staging is full (${target.capacity} channels)."
                     r.duplicates > 0 -> "That channel is already staged."
                     else -> "Added ${channel.name.ifBlank { Fmt.mhz(channel.rxFreqHz) }} to staging."
-                })
+                }, isError = r.overflow > 0))
             }
         }
     }
@@ -360,7 +372,7 @@ class RepeatersViewModel(private val c: AppContainer) : ViewModel() {
         try {
             val summary = c.csvProvider.import(text, fileName)
             val warn = if (summary.errors.isNotEmpty()) " ${summary.errors.size} lines skipped." else ""
-            _state.update { it.copy(message = "Imported ${summary.entries} entries from $fileName.$warn", results = null) }
+            _state.update { it.copy(message = Toast("Imported ${summary.entries} entries from $fileName.$warn"), results = null) }
             if (RepeaterSource.CSV !in c.settings.settings.value.providers) c.settings.update { it.copy(providers = it.providers + RepeaterSource.CSV) }
             refreshSummary()
             val s = _state.value

@@ -4,6 +4,9 @@
  */
 package com.vyntric.offset.ui.components
 
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -217,6 +220,41 @@ fun ButtonRow(text: String, destructive: Boolean = false, enabled: Boolean = tru
             .heightIn(min = Dimens.rowMinHeight)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = Dimens.gutter, vertical = 13.dp),
+    )
+}
+
+/** How a finished [ActionRow] action went: a short line, with a tick when [ok] or a warning when not. */
+data class ActionOutcome(val text: String, val ok: Boolean)
+
+/**
+ * A button row for an action that takes time: [title], then [pendingTitle] with a spinner while
+ * [pending], then [outcome] under the title with a tick or a warning.
+ */
+@Composable
+fun ActionRow(
+    title: String,
+    pending: Boolean,
+    outcome: ActionOutcome?,
+    pendingTitle: String = "$title...",
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val colors = OffsetTheme.colors
+    CellRow(
+        if (pending) pendingTitle else title,
+        subtitle = outcome?.text?.takeIf { !pending },
+        titleColor = if (enabled || pending) colors.accent else colors.tertiaryLabel,
+        enabled = enabled && !pending,
+        trailing = {
+            when {
+                pending -> CircularProgressIndicator(color = colors.secondaryLabel, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                outcome == null -> Unit
+                outcome.ok -> Icon(Icons.Rounded.CheckCircle, contentDescription = "Done", tint = colors.success)
+                else -> Icon(Icons.Rounded.ErrorOutline, contentDescription = "Failed", tint = colors.destructive)
+            }
+        },
+        onClickLabel = title,
+        onClick = onClick,
     )
 }
 

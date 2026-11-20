@@ -10,10 +10,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ErrorOutline
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -37,12 +33,13 @@ import com.vyntric.offset.domain.RepeaterSource
 import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.domain.UsState
 import com.vyntric.offset.ui.components.BarAction
+import com.vyntric.offset.ui.components.ActionOutcome
+import com.vyntric.offset.ui.components.ActionRow
 import com.vyntric.offset.ui.components.ButtonRow
 import com.vyntric.offset.ui.components.OffsetSheet
 import com.vyntric.offset.ui.components.CellRow
 import com.vyntric.offset.ui.components.InsetSection
 import com.vyntric.offset.ui.components.LargeTitleScreen
-import com.vyntric.offset.ui.components.SectionFooter
 import com.vyntric.offset.ui.components.SegmentedRow
 import com.vyntric.offset.ui.components.TextFieldRow
 import com.vyntric.offset.ui.components.ToggleRow
@@ -63,8 +60,7 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
         if (s.message != null) { kotlinx.coroutines.delay(3_000); vm.dismissMessage() }
     }
 
-    LargeTitleScreen(title = "Settings") {
-        s.message?.let { m -> item(key = "msg") { SectionFooter(m) } }
+    LargeTitleScreen(title = "Settings", toast = s.message) {
         item(key = "source") {
             InsetSection(header = "Repeater sources") {
                 RepeaterSource.providers.forEach { src ->
@@ -188,28 +184,15 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
     }
 }
 
-/** Test connection, then a spinner while it runs, then the outcome with a tick or a warning. */
 @Composable
-private fun TestRow(s: SettingsUiState, onTest: () -> Unit) {
-    val colors = OffsetTheme.colors
-    val result = s.testResult
-    CellRow(
-        if (s.testing) "Testing..." else "Test connection",
-        subtitle = result?.takeIf { !s.testing },
-        titleColor = colors.accent,
-        enabled = !s.testing && s.email.contains('@'),
-        trailing = {
-            when {
-                s.testing -> CircularProgressIndicator(color = colors.secondaryLabel, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                result == null -> Unit
-                s.testOk -> Icon(Icons.Rounded.CheckCircle, contentDescription = "Connected", tint = colors.success)
-                else -> Icon(Icons.Rounded.ErrorOutline, contentDescription = "Failed", tint = colors.destructive)
-            }
-        },
-        onClickLabel = "Test the RepeaterBook connection",
-        onClick = onTest,
-    )
-}
+private fun TestRow(s: SettingsUiState, onTest: () -> Unit) = ActionRow(
+    "Test connection",
+    pending = s.testing,
+    pendingTitle = "Testing...",
+    outcome = s.testResult?.let { ActionOutcome(it, ok = s.testOk) },
+    enabled = s.email.contains('@'),
+    onClick = onTest,
+)
 
 private fun megabytes(bytes: Long): String =
     if (bytes < 1_000_000) "${bytes / 1000} KB" else String.format(java.util.Locale.US, "%.0f MB", bytes / 1_000_000.0)
