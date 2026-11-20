@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.vyntric.offset.ui.LocalTimeDisplay
 import com.vyntric.offset.AppContainer
 import com.vyntric.offset.domain.ImageKind
 import com.vyntric.offset.protocol.Channel
@@ -133,7 +134,10 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
                 cell { DetailRow("Ident", image.identity) }
                 cell { DetailRow("Channels", "${image.usedChannelCount} of ${image.capacity}") }
                 cell { DetailRow("Kind", when (stored.kind) { ImageKind.USER -> "Saved"; ImageKind.FACTORY -> "Factory read"; ImageKind.BACKUP -> "Backup" }) }
-                cell { DetailRow("Updated", Fmt.dateTime(stored.updatedAtMillis)) }
+                cell { DetailRow("Saved", LocalTimeDisplay.current.dateTime(stored.createdAtMillis)) }
+                if (stored.updatedAtMillis != stored.createdAtMillis) {
+                    cell { DetailRow("Edited", LocalTimeDisplay.current.dateTime(stored.updatedAtMillis)) }
+                }
                 cell { CellRow("Notes", subtitle = stored.notes.ifBlank { "Add notes" }, chevron = true, onClick = { notes = true }) }
             }
         }
@@ -143,8 +147,8 @@ fun ImageDetailScreen(container: AppContainer, id: Long, onBack: () -> Unit, onO
                 cell { ButtonRow("Load into staging") { vm.loadIntoStaging() } }
                 cell { ButtonRow("Rename") { renaming = true } }
                 cell { ButtonRow("Duplicate") { vm.duplicate(onOpen) } }
-                cell { ButtonRow("Export CHIRP .img") { exportImg.launch(fileName(stored.name, "img")) } }
-                cell { ButtonRow("Export CHIRP CSV") { exportCsv.launch(fileName(stored.name, "csv")) } }
+                cell { ButtonRow("Export CHIRP .img") { exportImg.launch(fileName(stored.name, stored.createdAtMillis, "img")) } }
+                cell { ButtonRow("Export CHIRP CSV") { exportCsv.launch(fileName(stored.name, stored.createdAtMillis, "csv")) } }
                 cell { ButtonRow("Import CHIRP CSV into this image") { importCsv.launch(arrayOf("text/*", "*/*")) } }
             }
         }
@@ -257,4 +261,9 @@ private fun TextSheet(title: String, initial: String, singleLine: Boolean, onDis
     }
 }
 
-private fun fileName(name: String, ext: String) = name.replace(Regex("[^A-Za-z0-9 ._-]"), "").trim().ifEmpty { "offset-image" } + ".$ext"
+/** The image's name and the day it was saved, as a file name: "Written 2026-11-20.img". */
+private fun fileName(name: String, savedAtMillis: Long, ext: String): String {
+    val day = java.time.Instant.ofEpochMilli(savedAtMillis).atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+    val base = name.replace(Regex("[^A-Za-z0-9 ._-]"), "").trim().ifEmpty { "offset-image" }
+    return (if ("$day" in base) base else "$base $day") + ".$ext"
+}

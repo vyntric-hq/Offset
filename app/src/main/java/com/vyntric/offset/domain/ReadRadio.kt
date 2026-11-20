@@ -9,7 +9,6 @@ import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.RadioImage
 import com.vyntric.offset.protocol.Sleeper
 import java.time.Clock
-import java.time.LocalDate
 
 /**
  * Reads the full image from the radio; the first read of a radio is saved as a factory image.
@@ -38,6 +37,6 @@ class ReadRadio(
     private fun factoryName(image: RadioImage): String {
         val fw = image.firmwareVersion?.removePrefix("Ver ")?.trim()?.takeIf { it.isNotEmpty() }
         val ident = listOfNotNull(image.modelName, fw).joinToString(" ")
-        return "Factory read $ident ${LocalDate.now(clock)}"
+        return "Factory read $ident"
     }
 }

@@ -130,7 +130,7 @@ fun RadioScreen(container: AppContainer) {
         },
     ) {
         item(key = "connection") {
-            ConnectionSection(state, onPermission = vm::requestPermission, onRead = vm::read, onPickType = { pickingType = true })
+            ConnectionSection(state, onPermission = vm::requestPermission, onRead = vm::read, onSave = { vm.saveRead() }, onPickType = { pickingType = true })
         }
 
         item(key = "banner") {
@@ -232,13 +232,17 @@ fun RadioScreen(container: AppContainer) {
         )
     }
     if (presets) {
-        PresetsSheet(onDismiss = { presets = false }) { presets = false; vm.addPreset(it) }
+        PresetsSheet(SimplexPresets.ALL.filter { it.fits(state.model) }, onDismiss = { presets = false }) { presets = false; vm.addPreset(it) }
     }
     if (pickingType) {
         RadioTypeSheet(current = state.radioType, onDismiss = { pickingType = false }) { pickingType = false; vm.selectRadioType(it) }
     }
-    if (pendingPreset != null) {
-        GmrsWarningSheet(onCancel = vm::cancelPreset, onAccept = vm::confirmPresetGmrs)
+    pendingPreset?.let { p ->
+        val acked = container.settings.settings.value
+        GmrsWarningSheet(
+            onCancel = vm::cancelPreset, onAccept = vm::confirmPreset,
+            gmrs = p.includesGmrs && !acked.gmrsAcknowledged, cb = p.includesCb && !acked.cbAcknowledged,
+        )
     }
     if (confirming) {
         WriteConfirmSheet(state, vm.defaultImageName(), onCancel = { confirming = false }) { name ->
@@ -249,7 +253,7 @@ fun RadioScreen(container: AppContainer) {
 }
 
 @Composable
-private fun ConnectionSection(state: RadioUiState, onPermission: () -> Unit, onRead: () -> Unit, onPickType: () -> Unit) {
+private fun ConnectionSection(state: RadioUiState, onPermission: () -> Unit, onRead: () -> Unit, onSave: () -> Unit, onPickType: () -> Unit) {
     val image = state.snapshot?.image
     val running = state.operation as? RadioOperations.State.Running
     InsetSection(
@@ -302,6 +306,9 @@ private fun ConnectionSection(state: RadioUiState, onPermission: () -> Unit, onR
             cell { ProgressRow(running) }
         } else {
             cell { ButtonRow(if (image == null) "Read radio" else "Read again", enabled = state.cableUsable && !state.busy, onClick = onRead) }
+            if (image != null) {
+                cell { ButtonRow(if (state.readSaved) "Saved to Images" else "Save to Images", enabled = !state.readSaved, onClick = onSave) }
+            }
         }
     }
 }
@@ -453,9 +460,9 @@ private fun RadioTypeSheet(current: RadioDriver, onDismiss: () -> Unit, onPick: 
  * Add button stages it.
  */
 @Composable
-private fun PresetsSheet(onDismiss: () -> Unit, onPick: (SimplexPresets.Preset) -> Unit) {
+private fun PresetsSheet(available: List<SimplexPresets.Preset>, onDismiss: () -> Unit, onPick: (SimplexPresets.Preset) -> Unit) {
     var openId by rememberSaveable { mutableStateOf<String?>(null) }
-    val open = SimplexPresets.ALL.firstOrNull { it.id == openId }
+    val open = available.firstOrNull { it.id == openId }
     OffsetSheet(
         onDismiss = onDismiss,
         title = open?.title ?: "Simplex presets",
@@ -469,7 +476,7 @@ private fun PresetsSheet(onDismiss: () -> Unit, onPick: (SimplexPresets.Preset) 
         BackHandler(enabled = open != null) { openId = null }
         if (open == null) {
             InsetSection {
-                SimplexPresets.ALL.forEach { p ->
+                available.forEach { p ->
                     cell {
                         CellRow(p.title, subtitle = "${p.channels.size} channels", chevron = true, onClickLabel = "Show ${p.title}") { openId = p.id }
                     }

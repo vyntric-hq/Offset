@@ -235,7 +235,7 @@ class ReadRadioTest {
         val radio = SimulatedRadio.fromImage(AppFixtures.factoryImage())
         val read = ReadRadio(SimLink(radio), library, RadioSession(), fixedClock, Sleeper.NONE) { Uv5rDriver }
         val first = read {}
-        assertEquals("Factory read UV-5R BFB291 2026-11-13", first.factoryImageName)
+        assertEquals("Factory read UV-5R BFB291", first.factoryImageName)
         assertEquals(ImageKind.FACTORY, library.items[first.factoryImageId]!!.kind)
         val second = read {}
         assertEquals(null, second.factoryImageId)

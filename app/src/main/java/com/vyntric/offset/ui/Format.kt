@@ -14,10 +14,6 @@ import com.vyntric.offset.protocol.Modulation
 import com.vyntric.offset.protocol.Squelch
 import com.vyntric.offset.protocol.ToneMode
 import com.vyntric.offset.protocol.Tones
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 import java.util.Locale
 
 /** Display formatting shared by every screen. */
@@ -114,12 +110,6 @@ object Fmt {
         fun unitLabel(units: Units) = if (units == Units.MILES) "mi" else "km"
 
     fun radiusKm(value: Int, units: Units): Double = if (units == Units.MILES) value * Geo.KM_PER_MILE else value.toDouble()
-
-    private val dateFmt = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-    private val dateTimeFmt = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
-
-    fun date(millis: Long): String = dateFmt.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
-    fun dateTime(millis: Long): String = dateTimeFmt.format(Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()))
 
     fun bytes(done: Int, total: Int): String = String.format(Locale.US, "%,d of %,d bytes", done, total)
 }

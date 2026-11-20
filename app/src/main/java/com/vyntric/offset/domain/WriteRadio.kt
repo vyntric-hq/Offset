@@ -14,8 +14,6 @@ import com.vyntric.offset.protocol.SerialPort
 import com.vyntric.offset.protocol.Sleeper
 import kotlinx.coroutines.CancellationException
 import java.time.Clock
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 /**
  * Writes channels to the radio under the safety rules:
@@ -186,7 +184,7 @@ class WriteRadio(
 
         // Rule 4: backup of exactly what the radio holds now.
         val backupId = try {
-            library.save(radio, "Backup before write ${stamp()}", ImageKind.BACKUP, notes = "Radio contents before a write.")
+            library.save(radio, "Backup before write", ImageKind.BACKUP, notes = "Radio contents before a write.")
         } catch (e: Exception) {
             return Outcome.Blocked(Stage.BACKUP, listOf("Could not save the backup, so nothing was written. ${e.message.orEmpty()}"))
         }
@@ -220,8 +218,8 @@ class WriteRadio(
         var saveError: String? = null
         val savedId = try {
             library.save(
-                readBack, request.resultName.ifBlank { "Written ${stamp()}" }, ImageKind.USER,
-                notes = if (mismatches.isEmpty()) "Written and verified ${stamp()}." else "Written ${stamp()}; verification found differences.",
+                readBack, request.resultName.ifBlank { "Written" }, ImageKind.USER,
+                notes = if (mismatches.isEmpty()) "Written and verified." else "Verification found differences.",
             )
         } catch (e: Exception) {
             saveError = "The radio was written, but the result could not be saved to Images: ${e.message ?: e.javaClass.simpleName}"
@@ -234,14 +232,11 @@ class WriteRadio(
         }
     }
 
-    private fun stamp(): String = LocalDateTime.now(clock).format(STAMP)
-
     companion object {
         private val RESTORE_CHECKS = setOf(
             ChannelValidator.Field.FREQUENCY, ChannelValidator.Field.TX_FREQUENCY,
             ChannelValidator.Field.TX_TONE, ChannelValidator.Field.RX_TONE,
         )
-        private val STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
 
         fun describe(e: Throwable): String = when (e) {
             is RadioException, is LinkUnavailableException -> e.message.orEmpty()

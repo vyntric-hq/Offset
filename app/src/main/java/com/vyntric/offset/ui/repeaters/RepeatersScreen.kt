@@ -5,6 +5,7 @@
 package com.vyntric.offset.ui.repeaters
 
 import androidx.compose.ui.text.style.TextOverflow
+import com.vyntric.offset.ui.LocalTimeDisplay
 import com.vyntric.offset.ui.components.SourceBadge
 import com.vyntric.offset.ui.components.CreditLine
 import android.Manifest
@@ -247,7 +248,7 @@ private fun Summary(s: RepeatersUiState) {
         "${String.format(java.util.Locale.US, "%,d", sum.amateur)} amateur",
         "${String.format(java.util.Locale.US, "%,d", sum.gmrs)} GMRS",
     ).joinToString(" + ")
-    val updated = sum.fetchedAtMillis?.let { ", updated ${Fmt.date(it)}" }.orEmpty()
+    val updated = sum.fetchedAtMillis?.let { ", updated ${LocalTimeDisplay.current.date(it)}" }.orEmpty()
     val where = when (s.providers.singleOrNull()) {
         RepeaterSource.REPEATERBOOK -> " (states loaded so far)"
         RepeaterSource.CSV -> " (imported list)"
@@ -281,7 +282,7 @@ private fun Filters(s: RepeatersUiState, vm: RepeatersViewModel, locate: () -> U
                         cell {
                             CellRow(
                                 "Location",
-                                subtitle = s.fix?.let { "${it.provider.uppercase().ifBlank { "Device" }} fix, ${Fmt.dateTime(it.timeMillis)}" },
+                                subtitle = s.fix?.let { "${it.provider.uppercase().ifBlank { "Device" }} fix, ${LocalTimeDisplay.current.dateTime(it.timeMillis)}" },
                                 value = when {
                                     s.locating -> "Locating"
                                     s.fix != null -> String.format(java.util.Locale.US, "%.3f, %.3f", s.fix.latitude, s.fix.longitude)
@@ -447,7 +448,7 @@ private fun Attribution(s: RepeatersUiState, onRefresh: () -> Unit) {
                 }
                 // The date wraps; Refresh keeps its width so it never breaks one letter per line.
                 Text(
-                    "$label ${Fmt.dateTime(at)}",
+                    "$label ${LocalTimeDisplay.current.dateTime(at)}",
                     style = OffsetTheme.type.footnote,
                     color = colors.secondaryLabel,
                     modifier = Modifier.weight(1f, fill = false),
@@ -507,7 +508,7 @@ private fun RepeaterDetailSheet(r: Repeater, s: RepeatersUiState, onDismiss: () 
                         subtitle = listOfNotNull(
                             "Copied from ${l.origin.displayName}".takeIf { l.origin != l.source },
                             "Tone ${Fmt.squelch(l.uplinkTone)}".takeIf { v.tonesDisagree },
-                            l.lastReportMillis?.let { "Node last reported ${Fmt.dateTime(it)}" },
+                            l.lastReportMillis?.let { "Node last reported ${LocalTimeDisplay.current.dateTime(it)}" },
                         ).joinToString(" · ").ifEmpty { null },
                         chevron = l.detailUrl != null,
                         onClickLabel = "View on ${l.source.displayName}",

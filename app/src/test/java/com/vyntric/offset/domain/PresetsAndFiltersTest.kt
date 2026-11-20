@@ -10,9 +10,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PresetsAndFiltersTest {
-    @Test fun `every preset channel is valid on both radio profiles`() {
-        for (preset in SimplexPresets.ALL) for (model in RadioModel.entries) for (ch in preset.channels) {
-            val problems = ChannelValidator.validate(ch, model).filter { it.field != ChannelValidator.Field.POWER || model.triPower }
+    @Test fun `every preset a radio is offered is valid on it`() {
+        for (model in RadioModel.entries + com.vyntric.offset.protocol.Rt950ProProfile) for (preset in SimplexPresets.ALL.filter { it.fits(model) }) for (ch in preset.channels) {
+            val problems = ChannelValidator.validate(ch, model).filter { it.field != ChannelValidator.Field.POWER || (model as? RadioModel)?.triPower != false }
             assertTrue("${preset.id} ${ch.name} on $model: $problems", problems.isEmpty())
         }
     }
@@ -29,6 +29,18 @@ class PresetsAndFiltersTest {
         assertTrue(SimplexPresets.FRS_GMRS.includesGmrs)
         assertFalse(SimplexPresets.CALLING.includesGmrs)
         assertTrue(SimplexPresets.NOAA.channels.all { it.txFreqHz == null })
+    }
+
+    @Test fun `CB preset is the 40 US channels, offered only to radios that tune 27 MHz`() {
+        val cb = SimplexPresets.CB.channels
+        assertEquals(40, cb.size)
+        assertEquals(26_965_000, cb[0].rxFreqHz)
+        assertEquals(27_185_000, cb[18].rxFreqHz) // 19, the highway channel
+        assertEquals(27_255_000, cb[22].rxFreqHz) // 23 sits above 24 and 25
+        assertEquals(27_405_000, cb[39].rxFreqHz)
+        assertTrue(SimplexPresets.CB.includesCb && !SimplexPresets.CB.includesGmrs)
+        assertTrue(SimplexPresets.CB.fits(com.vyntric.offset.protocol.Rt950ProProfile))
+        assertFalse(SimplexPresets.CB.fits(RadioModel.UV5R))
     }
 
     @Test fun `GMRS detection covers channels and repeater inputs only`() {

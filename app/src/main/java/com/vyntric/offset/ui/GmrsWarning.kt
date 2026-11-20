@@ -20,11 +20,21 @@ const val GMRS_WARNING =
         "sold for amateur use (Part 90 in some models), not certified under Part 95 for GMRS. FRS channels 8 to 14 are limited to " +
         "0.5 W. You are responsible for operating legally. Receiving is always allowed."
 
-/** Shown once, the first time GMRS channels are added. */
+const val CB_WARNING =
+    "In the US, CB needs no license, but CB transmitters must be certified under Part 95 and are limited to " +
+        "4 W on AM. Check that your radio is certified for CB before transmitting. Receiving is always allowed."
+
+/** Shown once, the first time GMRS or CB channels are added. */
 @Composable
-fun GmrsWarningSheet(onCancel: () -> Unit, onAccept: () -> Unit) {
-    OffsetSheet(onDismiss = onCancel, title = "GMRS channels", leadingAction = { BarAction("Cancel", onClick = onCancel) }) {
-        SectionFooter(GMRS_WARNING)
+fun GmrsWarningSheet(onCancel: () -> Unit, onAccept: () -> Unit, gmrs: Boolean = true, cb: Boolean = false) {
+    val title = when {
+        gmrs && cb -> "GMRS and CB channels"
+        cb -> "CB channels"
+        else -> "GMRS channels"
+    }
+    OffsetSheet(onDismiss = onCancel, title = title, leadingAction = { BarAction("Cancel", onClick = onCancel) }) {
+        if (gmrs) SectionFooter(GMRS_WARNING)
+        if (cb) SectionFooter(CB_WARNING)
         Column(Modifier.padding(Dimens.gutter)) {
             PrimaryButton("I understand, add them", onClick = onAccept)
         }

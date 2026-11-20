@@ -5,6 +5,7 @@
 package com.vyntric.offset.ui.settings
 
 import androidx.compose.foundation.layout.width
+import com.vyntric.offset.ui.LocalTimeDisplay
 import com.vyntric.offset.ui.components.SourceBadge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -28,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vyntric.offset.AppContainer
 import com.vyntric.offset.BuildConfig
 import com.vyntric.offset.data.BandFilter
+import com.vyntric.offset.data.ClockFormat
 import com.vyntric.offset.data.Settings
 import com.vyntric.offset.data.ThemeMode
 import com.vyntric.offset.data.Units
@@ -57,6 +59,13 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
     var token by remember(s.token) { mutableStateOf(s.token) }
     var email by remember(s.email) { mutableStateOf(s.email) }
     val dirty = token != s.token || email != s.email
+    var pickingZone by remember { mutableStateOf(false) }
+    if (pickingZone) {
+        TimeZoneSheet(s.settings.timeZone, onDismiss = { pickingZone = false }) { zone ->
+            vm.update { it.copy(timeZone = zone) }
+            pickingZone = false
+        }
+    }
 
     LaunchedEffect(s.message) {
         if (s.message != null) { kotlinx.coroutines.delay(3_000); vm.dismissMessage() }
@@ -118,7 +127,7 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
                     cell {
                         CellRow(
                             if (src == RepeaterSource.CSV) "Clear imported CSV" else "Clear ${src.displayName} cache",
-                            subtitle = at?.let { "From ${Fmt.dateTime(it)}" } ?: "Nothing cached",
+                            subtitle = at?.let { "From ${LocalTimeDisplay.current.dateTime(it)}" } ?: "Nothing cached",
                             titleColor = OffsetTheme.colors.accent,
                             enabled = at != null,
                         ) { vm.clearCache(src) }
@@ -170,6 +179,16 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
                 cell { ToggleRow("Haptics", s.settings.haptics, { on -> vm.update { it.copy(haptics = on) } }) }
             }
         }
+        item(key = "time") {
+            InsetSection(header = "Date and time") {
+                cell {
+                    SegmentedRow("Clock", listOf("Phone", "12-hour", "24-hour"), s.settings.clockFormat.ordinal) { i ->
+                        vm.update { it.copy(clockFormat = ClockFormat.entries[i]) }
+                    }
+                }
+                cell { CellRow("Time zone", value = s.settings.timeZone ?: "Phone", chevron = true, onClick = { pickingZone = true }) }
+            }
+        }
         if (BuildConfig.DEBUG) {
             item(key = "debug") {
                 InsetSection(header = "Debug") {
@@ -186,6 +205,35 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
         item(key = "pad") { Box(Modifier.padding(8.dp)) }
     }
 }
+
+/** Phone, UTC, or any zone found by searching its name ("Chicago", "Europe/"). */
+@Composable
+private fun TimeZoneSheet(current: String?, onDismiss: () -> Unit, onPick: (String?) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    val all = remember { java.time.ZoneId.getAvailableZoneIds().filter { '/' in it && !it.startsWith("Etc/") && !it.startsWith("SystemV/") }.sorted() }
+    val matches = remember(query) {
+        val q = query.trim().replace(' ', '_')
+        if (q.isEmpty()) emptyList() else all.filter { it.contains(q, ignoreCase = true) }.take(60)
+    }
+    OffsetSheet(onDismiss = onDismiss, title = "Time zone", leadingAction = { BarAction("Cancel", onClick = onDismiss) }) {
+        InsetSection {
+            cell { TextFieldRow("Search", query, { query = it }, placeholder = "City or region", labelWidth = 80.dp) }
+        }
+        InsetSection {
+            cell { ZoneRow("Phone", java.time.ZoneId.systemDefault().id, current == null) { onPick(null) } }
+            cell { ZoneRow("UTC", null, current == "UTC") { onPick("UTC") } }
+            matches.forEach { id -> cell { ZoneRow(id.replace('_', ' '), null, current == id) { onPick(id) } } }
+        }
+    }
+}
+
+@Composable
+private fun ZoneRow(title: String, value: String?, selected: Boolean, onClick: () -> Unit) = CellRow(
+    title,
+    value = value,
+    trailing = if (selected) { { Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = OffsetTheme.colors.accent) } } else null,
+    onClick = onClick,
+)
 
 @Composable
 private fun TestRow(s: SettingsUiState, onTest: () -> Unit) = ActionRow(

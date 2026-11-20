@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.asStateFlow
 enum class Units { MILES, KILOMETERS }
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** How times of day are shown: as the phone does, or always 12 or 24 hour. */
+enum class ClockFormat { PHONE, TWELVE_HOUR, TWENTY_FOUR_HOUR }
+
 enum class BandFilter(val bands: Set<Band>, val label: String) {
     TWO_METER(setOf(Band.TWO_METER), "2m"),
     SEVENTY_CM(setOf(Band.SEVENTY_CM), "70cm"),
@@ -30,10 +33,15 @@ data class Settings(
     val defaultBand: BandFilter = BandFilter.BOTH,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val haptics: Boolean = true,
+    val clockFormat: ClockFormat = ClockFormat.PHONE,
+    /** A time zone id such as "UTC" that dates and times are shown in, or null for the phone's zone. */
+    val timeZone: String? = null,
     /** Debug builds only: talk to the simulated radio instead of USB. */
     val simulatedRadio: Boolean = false,
     /** The user has read the GMRS licensing and certification warning. */
     val gmrsAcknowledged: Boolean = false,
+    /** The user has read the CB certification warning. */
+    val cbAcknowledged: Boolean = false,
     /** The radio type to read, a RadioDriver id. */
     val radioType: String = "uv5r",
 ) {
@@ -59,8 +67,11 @@ class SettingsRepository(private val prefs: SharedPreferences) {
             putString(K_BAND, next.defaultBand.name)
             putString(K_THEME, next.theme.name)
             putBoolean(K_HAPTICS, next.haptics)
+            putString(K_CLOCK, next.clockFormat.name)
+            if (next.timeZone == null) remove(K_ZONE) else putString(K_ZONE, next.timeZone)
             putBoolean(K_SIM, next.simulatedRadio)
             putBoolean(K_GMRS_ACK, next.gmrsAcknowledged)
+            putBoolean(K_CB_ACK, next.cbAcknowledged)
             putString(K_RADIO, next.radioType)
         }
         _settings.value = next
@@ -75,8 +86,11 @@ class SettingsRepository(private val prefs: SharedPreferences) {
             defaultBand = enumOr(prefs.getString(K_BAND, null), d.defaultBand),
             theme = enumOr(prefs.getString(K_THEME, null), d.theme),
             haptics = prefs.getBoolean(K_HAPTICS, d.haptics),
+            clockFormat = enumOr(prefs.getString(K_CLOCK, null), d.clockFormat),
+            timeZone = prefs.getString(K_ZONE, null)?.takeIf { it in java.time.ZoneId.getAvailableZoneIds() || it == "UTC" },
             simulatedRadio = prefs.getBoolean(K_SIM, d.simulatedRadio),
             gmrsAcknowledged = prefs.getBoolean(K_GMRS_ACK, d.gmrsAcknowledged),
+            cbAcknowledged = prefs.getBoolean(K_CB_ACK, d.cbAcknowledged),
             radioType = prefs.getString(K_RADIO, null) ?: d.radioType,
         )
     }
@@ -99,8 +113,11 @@ class SettingsRepository(private val prefs: SharedPreferences) {
         const val K_BAND = "default_band"
         const val K_THEME = "theme"
         const val K_HAPTICS = "haptics"
+        const val K_CLOCK = "clock_format"
+        const val K_ZONE = "time_zone"
         const val K_SIM = "simulated_radio"
         const val K_GMRS_ACK = "gmrs_acknowledged"
+        const val K_CB_ACK = "cb_acknowledged"
         const val K_RADIO = "radio_type"
     }
 }

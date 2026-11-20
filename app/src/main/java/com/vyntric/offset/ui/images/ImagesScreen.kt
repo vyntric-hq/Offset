@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.vyntric.offset.ui.LocalTimeDisplay
 import com.vyntric.offset.AppContainer
 import com.vyntric.offset.data.ImageSummary
 import com.vyntric.offset.domain.ImageKind
@@ -133,9 +134,10 @@ internal fun ImageRow(img: ImageSummary, onClick: () -> Unit) {
                 Text(img.name, style = OffsetTheme.type.body, color = colors.label, modifier = Modifier.weight(1f, fill = false), maxLines = 2)
                 if (img.kind == ImageKind.FACTORY) { Spacer(Modifier.width(8.dp)); Tag("Factory") }
             }
+            Text(LocalTimeDisplay.current.dateTime(img.createdAtMillis), style = OffsetTheme.type.subhead, color = colors.secondaryLabel, maxLines = 1)
             Text(
-                "${img.model}${img.firmware?.let { " ($it)" } ?: ""} · ${img.channelCount}${img.driver?.let { " of ${it.capacity}" } ?: ""} channels · ${Fmt.date(img.updatedAtMillis)}",
-                style = OffsetTheme.type.subhead, color = colors.secondaryLabel, maxLines = 2,
+                "${img.model}${img.firmware?.let { " ($it)" } ?: ""} · ${img.channelCount}${img.driver?.let { " of ${it.capacity}" } ?: ""} channels",
+                style = OffsetTheme.type.footnote, color = colors.secondaryLabel, maxLines = 2,
             )
             if (img.notes.isNotBlank() && img.kind == ImageKind.USER) {
                 Text(img.notes, style = OffsetTheme.type.footnote, color = colors.tertiaryLabel, maxLines = 1)

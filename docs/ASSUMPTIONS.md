@@ -408,3 +408,15 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     the approved value to the prefix `Offset/`; then it goes back to
     `RepeaterBookProvider.standardUserAgent`, with the version and the user's email. The email
     is still required in Settings.
+119. **The stock RT-950 Pro's HF receiver keeps its own memory,** separate from the 960
+    channels: 16 FM, 16 AM and 16 SSB entries with names, in the 0xB000 and 0xD000 blocks
+    (Nathan Barguss's sections.py). Offset reads these blocks but does not decode or write them
+    (safety rule 3) until a real image confirms their units; the user saved test entries on
+    2026-11-20 to provide one.
+120. **Dates and times follow Settings (0.7.4):** the phone's clock and zone by default, or a
+    fixed 12 or 24 hour clock and a fixed zone, which is then named after each time. Exported
+    file names use the phone's date.
+121. **CB presets are AM at low power** (the radio's lowest level, under CB's 4 W AM limit).
+    Whether the stock RT-950 Pro transmits AM, or needs a work mode set on the radio for CB, is
+    unconfirmed; Offset writes only the channels. Generated image names from before 0.7.4 keep
+    their timestamps: a typed name cannot be told apart from a generated one, so none is changed.

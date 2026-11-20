@@ -6,14 +6,29 @@ package com.vyntric.offset.domain
 
 import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.Duplex
+import com.vyntric.offset.protocol.Modulation
 import com.vyntric.offset.protocol.Power
+import com.vyntric.offset.protocol.RadioProfile
 import com.vyntric.offset.protocol.Squelch
 
 /** Ready made channel sets that are the same everywhere in the US. */
 object SimplexPresets {
     data class Preset(val id: String, val title: String, val description: String, val channels: List<Channel>) {
         val includesGmrs: Boolean get() = channels.any { Gmrs.isGmrs(it.rxFreqHz) }
+        val includesCb: Boolean get() = channels.any { it.rxFreqHz in CB_RANGE }
+
+        /** True when [profile]'s radio tunes every channel. */
+        fun fits(profile: RadioProfile): Boolean = channels.all { profile.inBand(it.rxFreqHz) }
     }
+
+    /** US CB channels 1 to 40, in channel order (23 sits between 26 and 27 in frequency). */
+    val CB_CHANNELS_MHZ: List<Double> = listOf(
+        26.965, 26.975, 26.985, 27.005, 27.015, 27.025, 27.035, 27.055, 27.065, 27.075,
+        27.085, 27.105, 27.115, 27.125, 27.135, 27.155, 27.165, 27.175, 27.185, 27.205,
+        27.215, 27.225, 27.255, 27.235, 27.245, 27.265, 27.275, 27.285, 27.295, 27.305,
+        27.315, 27.325, 27.335, 27.345, 27.355, 27.365, 27.375, 27.385, 27.395, 27.405,
+    )
+    val CB_RANGE: LongRange = 26_960_000L..27_410_000L
 
     private fun simplex(mhz: Double, name: String, wide: Boolean = true, power: Power = Power.HIGH) =
         Channel(rxFreqHz = Math.round(mhz * 1_000_000), name = name, wide = wide, power = power)
@@ -63,5 +78,14 @@ object SimplexPresets {
         Gmrs.MAIN_462.mapIndexed { i, f -> Channel(f, Duplex.PLUS, 5_000_000, Squelch.None, name = "GMRS${i + 15}R") },
     )
 
-    val ALL = listOf(CALLING, SIMPLEX_2M, SIMPLEX_70CM, NOAA, FRS_GMRS, GMRS_REPEATERS)
+    /** CB 1 to 40 in AM, as truckers use them (19 is the highway channel), at low power. */
+    val CB = Preset(
+        "cb", "CB 1 to 40",
+        "US Citizens Band, AM. Channel 9 is for emergencies and 19 is the highway channel.",
+        CB_CHANNELS_MHZ.mapIndexed { i, f ->
+            Channel(rxFreqHz = Math.round(f * 1_000_000), name = "CB${i + 1}", mode = Modulation.AM, wide = false, power = Power.LOW)
+        },
+    )
+
+    val ALL = listOf(CALLING, SIMPLEX_2M, SIMPLEX_70CM, NOAA, FRS_GMRS, GMRS_REPEATERS, CB)
 }

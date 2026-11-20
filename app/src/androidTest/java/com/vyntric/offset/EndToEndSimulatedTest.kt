@@ -42,7 +42,7 @@ class EndToEndSimulatedTest {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         val db = Room.inMemoryDatabaseBuilder(ctx, OffsetDatabase::class.java).build()
         val c = AppContainer(ctx, db)
-        c.settings.update { it.copy(simulatedRadio = true, provider = RepeaterSource.CSV) }
+        c.settings.update { it.copy(simulatedRadio = true, providers = setOf(RepeaterSource.CSV)) }
         c.simulatedLink.reset()
 
         // Read: the first read saves a factory image.
@@ -94,7 +94,7 @@ class EndToEndSimulatedTest {
         val now = c.images.load((restored as WriteRadio.Outcome.Verified).savedImageId!!)!!.image
         assertEquals(importedImage.channels(), now.channels())
 
-        c.settings.update { it.copy(simulatedRadio = false, provider = RepeaterSource.HEARHAM) }
+        c.settings.update { it.copy(simulatedRadio = false, providers = setOf(RepeaterSource.HEARHAM)) }
         c.csvProvider.clearCache()
         db.close()
     }

@@ -41,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -99,9 +100,15 @@ fun OffsetRoot(container: AppContainer) {
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val radioState by container.operations.state.collectAsStateWithLifecycle()
     KeepScreenOn(radioState is RadioOperations.State.Running)
+    val settings by container.settings.settings.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val phone24 = android.text.format.DateFormat.is24HourFormat(context)
+    val timeDisplay = remember(settings.clockFormat, settings.timeZone, phone24) {
+        TimeDisplay.of(settings.clockFormat, phone24, settings.timeZone)
+    }
 
     Box(Modifier.fillMaxSize().background(OffsetTheme.colors.background)) {
-        CompositionLocalProvider(LocalBottomInset provides TabBarHeight + navInset) {
+        CompositionLocalProvider(LocalBottomInset provides TabBarHeight + navInset, LocalTimeDisplay provides timeDisplay) {
             NavHost(
                 navController = nav,
                 startDestination = Tab.RADIO.route,

@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import com.vyntric.offset.AppContainer
 import com.vyntric.offset.domain.CableState
 import com.vyntric.offset.domain.ChannelOrigin
+import com.vyntric.offset.domain.ImageKind
 import com.vyntric.offset.domain.RadioOperations
 import com.vyntric.offset.domain.RadioSession
 import com.vyntric.offset.domain.SimplexPresets
@@ -28,7 +29,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.time.LocalDate
 
 data class RadioUiState(
     val cable: CableState = CableState.NoCable,
@@ -40,6 +40,8 @@ data class RadioUiState(
     val error: String? = null,
     /** The radio type selected for reading. */
     val radioType: RadioDriver = RadioDrivers.default,
+    /** True once the current read has been saved to Images. */
+    val readSaved: Boolean = false,
 ) {
     /** The radio staging is built for: the one read, else the selected type. */
     val driver: RadioDriver get() = snapshot?.image?.driver ?: radioType
@@ -53,11 +55,19 @@ data class RadioUiState(
 class RadioViewModel(private val c: AppContainer) : ViewModel() {
     private val transient = MutableStateFlow(Pair<String?, String?>(null, null))
 
+    /** The read last saved to Images, so the same read is not saved twice. */
+    private val savedRead = MutableStateFlow<RadioSession.Snapshot?>(null)
+
     val state: StateFlow<RadioUiState> = combine(
         combine(c.radioLink.cable, c.radioSession.last, c.settings.settings) { cable, snap, s -> Triple(cable, snap, s) },
-        c.staging.observe(), c.operations.state, transient,
-    ) { (cable, snap, settings), staging, op, (message, error) ->
-        val base = RadioUiState(cable, snap, staging, emptyMap(), op, message, error, RadioDrivers.byId(settings.radioType) ?: RadioDrivers.default)
+        c.staging.observe(), c.operations.state, combine(transient, savedRead, ::Pair),
+    ) { (cable, snap, settings), staging, op, (messages, saved) ->
+        val (message, error) = messages
+        val base = RadioUiState(
+            cable, snap, staging, emptyMap(), op, message, error,
+            RadioDrivers.byId(settings.radioType) ?: RadioDrivers.default,
+            readSaved = snap != null && snap === saved,
+        )
         base.copy(problems = c.buildStaging.problems(staging, base.target, snap?.image))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RadioUiState())
 
@@ -108,6 +118,24 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
         clearMessageLater()
     }
 
+    /** Saves what was last read to Images, to keep or export. */
+    fun saveRead() = viewModelScope.launch {
+        val snap = c.radioSession.last.value ?: return@launch
+        // Claimed before saving, so a second tap while the first save runs does nothing.
+        val previous = savedRead.value
+        if (previous === snap) return@launch
+        savedRead.value = snap
+        runCatching { c.images.save(snap.image, "Read ${snap.image.modelName}", ImageKind.USER, notes = "") }
+            .onSuccess {
+                transient.value = "Saved to Images." to null
+                clearMessageLater()
+            }
+            .onFailure {
+                savedRead.compareAndSet(snap, previous)
+                transient.value = null to "Could not save the image."
+            }
+    }
+
     fun clearStaging() = viewModelScope.launch { c.staging.put(emptyList()) }
 
     /** Digital channels are not editable; say why instead of opening the editor. */
@@ -140,17 +168,20 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
         clearMessageLater()
     }
 
-    /** Set while a preset with GMRS channels waits for the one time warning. */
+    /** Set while a preset with GMRS or CB channels waits for its one time warning. */
     val pendingPreset = MutableStateFlow<SimplexPresets.Preset?>(null)
 
     fun addPreset(preset: SimplexPresets.Preset) {
-        if (preset.includesGmrs && !c.settings.settings.value.gmrsAcknowledged) {
+        val s = c.settings.settings.value
+        if ((preset.includesGmrs && !s.gmrsAcknowledged) || (preset.includesCb && !s.cbAcknowledged)) {
             pendingPreset.value = preset
             return
         }
         viewModelScope.launch {
             val target = state.value.target
-            val channels = preset.channels.map { it.copy(name = target.profile.sanitizeName(it.name), power = target.profile.nearestPower(it.power)) }
+            val channels = preset.channels.map {
+                it.copy(name = target.profile.sanitizeName(it.name), power = target.profile.nearestPower(it.power), mode = target.profile.nearestMode(it.mode))
+            }
             val r = c.staging.update { list -> c.buildStaging.add(list, channels, ChannelOrigin.MANUAL, target).let { it.staging to it } }
             val parts = listOfNotNull(
                 "Added ${r.added} ${preset.title} channels.",
@@ -162,16 +193,16 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
         }
     }
 
-    fun confirmPresetGmrs() {
+    fun confirmPreset() {
         val preset = pendingPreset.value ?: return
-        c.settings.update { it.copy(gmrsAcknowledged = true) }
+        c.settings.update { it.copy(gmrsAcknowledged = it.gmrsAcknowledged || preset.includesGmrs, cbAcknowledged = it.cbAcknowledged || preset.includesCb) }
         pendingPreset.value = null
         addPreset(preset)
     }
 
     fun cancelPreset() { pendingPreset.value = null }
 
-    fun defaultImageName(): String = "Written ${LocalDate.now(c.clock)}"
+    fun defaultImageName(): String = "Written"
 
     /** Rule 6 happened on the confirmation sheet; this records which radio it named. */
     fun write(imageName: String) {

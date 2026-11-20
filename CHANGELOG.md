@@ -7,6 +7,23 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.4] - 2026-11-20
+
+### Added
+
+- Radio: Save to Images keeps any read, not just the first read of a radio, so it can be
+  exported.
+- Presets: CB 1 to 40 (AM, low power), with a one time note on CB certification. Presets list
+  only what the selected radio can tune, so CB shows for the RT-950 Pro and not the UV-5R.
+- Settings, Date and time: a 12 or 24 hour clock (or the phone's choice) and a time zone (the
+  phone's, UTC, or any zone by search). A fixed zone is named after each time.
+
+### Changed
+
+- Images show the date and time each image was saved. New generated names ("Written", "Backup
+  before write", "Factory read RT-950 Pro") no longer carry timestamps; exported files still get
+  the date in their file name.
+
 ## [0.7.3] - 2026-11-20
 
 ### Changed
