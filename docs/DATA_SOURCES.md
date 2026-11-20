@@ -34,7 +34,7 @@ credits every source its repeaters came from.
 | Cache | Offline first. Searches answer from the newest data on the phone: a download (`noBackupFilesDir/repeaters/hearham.json`) or the bundled snapshot. Data older than 7 days is still answered at once and marked stale; the Repeaters screen then tries one quiet refresh per session and, offline, keeps the local results. "Refresh" fetches on demand. The date shown says whether it is the bundled snapshot or a download. |
 | Clear | Settings, Cached data, Clear Hearham cache. This removes the download; the bundled snapshot stays. |
 | Never done | No account, no tracking parameters, no position sent. |
-| Attribution | "Repeater data from Hearham.com" with a link under every result list, in the detail sheet, and on About. |
+| Attribution | "Repeater data from Hearham.com" in the detail sheet and on About. Under result lists, the map legend and Reach, one line credits every source shown: "Data courtesy of RepeaterBook.com, Hearham.com and the IRLP status page", each name linked (`CreditLine`). |
 | County | Not available; Hearham has no county field, so the county picker is hidden. |
 
 ### Hearham terms
@@ -133,7 +133,7 @@ has been requested.
 | Clear | Settings, Cached data, Clear RepeaterBook cache. Removing the token is separate. |
 | Test connection | One live request for the District of Columbia (FIPS 11), the smallest state query. |
 | Never done | No bulk download, no bundled database, no sharing or exporting of cached data, no background refresh, no use of RepeaterBook data to build another directory or feed. Cached files are app private and excluded from backup and device transfer. |
-| Attribution | "Data courtesy of RepeaterBook.com" with a link under every result list, in the detail sheet with a link to the repeater's RepeaterBook page, and on About. |
+| Attribution | "Data courtesy of RepeaterBook.com" with a link in the detail sheet (with the repeater's RepeaterBook page) and on About. Under result lists, the map legend and Reach, the shared credit line always opens with exactly "Data courtesy of RepeaterBook.com" when RepeaterBook data is shown. |
 
 ### RepeaterBook policy
 

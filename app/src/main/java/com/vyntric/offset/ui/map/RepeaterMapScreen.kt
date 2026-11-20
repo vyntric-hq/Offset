@@ -4,6 +4,7 @@
  */
 package com.vyntric.offset.ui.map
 
+import com.vyntric.offset.ui.components.CreditLine
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -171,9 +172,7 @@ fun RepeaterMapScreen(
                         Text("  $label", style = OffsetTheme.type.footnote, color = colors.label)
                     }
                 }
-            Fmt.credits(sources, repeaters).forEach {
-                Text(it.attribution, style = OffsetTheme.type.caption, color = colors.secondaryLabel)
-            }
+            CreditLine(Fmt.credits(sources, repeaters), OffsetTheme.type.caption)
         }
 
         // Recenter, bottom right above MapLibre's attribution button.

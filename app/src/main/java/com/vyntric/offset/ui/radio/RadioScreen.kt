@@ -4,6 +4,7 @@
  */
 package com.vyntric.offset.ui.radio
 
+import androidx.compose.ui.text.font.FontWeight
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -98,6 +99,10 @@ fun RadioScreen(container: AppContainer) {
     var adding by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf(false) }
     var presets by remember { mutableStateOf(false) }
+    // Drag handles only while reordering, so scrolling never moves a channel by accident.
+    var reordering by rememberSaveable { mutableStateOf(false) }
+    val canReorder = !fixedSlots && state.staging.size > 1
+    if (!canReorder && reordering) reordering = false
     var pickingType by remember { mutableStateOf(false) }
     val capacity = state.target.capacity
     // Staging can still hold numbers above this radio's capacity right after a radio type change.
@@ -146,7 +151,12 @@ fun RadioScreen(container: AppContainer) {
                     Text("Close gaps", style = OffsetTheme.type.footnote, color = colors.accent,
                         modifier = Modifier.tappable("Renumber channels without gaps") { vm.compact() })
                 }
-                if (state.staging.isNotEmpty()) {
+                if (canReorder) {
+                    Text(if (reordering) "Done" else "Reorder", style = OffsetTheme.type.footnote, color = colors.accent,
+                        fontWeight = if (reordering) FontWeight.SemiBold else null,
+                        modifier = Modifier.tappable(if (reordering) "Stop reordering" else "Reorder channels") { reordering = !reordering })
+                }
+                if (state.staging.isNotEmpty() && !reordering) {
                     Text("Clear", style = OffsetTheme.type.footnote, color = colors.accent,
                         modifier = Modifier.tappable { vm.clearStaging() })
                 }
@@ -170,7 +180,7 @@ fun RadioScreen(container: AppContainer) {
                     val problems = state.problems[staged.key]
                     GroupedCell(
                         CellPosition.of(index, list.size),
-                        Modifier.animateItem().let { if (fixedSlots) it else it.reorderable(reorder, staged.key) },
+                        Modifier.animateItem().let { if (reordering) it.reorderable(reorder, staged.key) else it },
                         separatorInset = numberColumn,
                     ) {
                         SwipeActionRow("Remove", onAction = { vm.remove(staged.key) }) {
@@ -179,10 +189,10 @@ fun RadioScreen(container: AppContainer) {
                                 numberColumn = numberColumn,
                                 staged = staged,
                                 problem = problems?.firstOrNull()?.message,
-                                handleModifier = if (fixedSlots) null else Modifier.dragHandle(reorder, staged.key) { haptics.select() },
+                                handleModifier = if (reordering) Modifier.dragHandle(reorder, staged.key) { haptics.select() } else null,
                                 onClick = { if (staged.channel.digitalMode == null) editing = staged else vm.explainDigital(staged.channel) },
-                                onMoveUp = if (!fixedSlots && index > 0) ({ vm.move(staged.key, list[index - 1].key) }) else null,
-                                onMoveDown = if (!fixedSlots && index < list.lastIndex) ({ vm.move(staged.key, list[index + 1].key) }) else null,
+                                onMoveUp = if (reordering && index > 0) ({ vm.move(staged.key, list[index - 1].key) }) else null,
+                                onMoveDown = if (reordering && index < list.lastIndex) ({ vm.move(staged.key, list[index + 1].key) }) else null,
                             )
                         }
                     }
@@ -194,7 +204,7 @@ fun RadioScreen(container: AppContainer) {
                         "Numbers are the radio's channel numbers. Channels keep their numbers on this radio because " +
                             "${state.target.fixedSlotsReason} Swipe left to remove."
                     } else {
-                        "Numbers are the radio's channel numbers; empty channels stay empty. Drag the handle to reorder, swipe left to remove."
+                        if (reordering) "Drag the handles to reorder." else "Swipe left to remove."
                     },
                 )
             }

@@ -4,6 +4,7 @@
  */
 package com.vyntric.offset.ui.reach
 
+import com.vyntric.offset.ui.components.CreditLine
 import android.Manifest
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -451,16 +452,10 @@ private fun SummaryPanel(
         }
         if (repeaters.isNotEmpty()) {
             // Each directory's required credit, wherever its repeaters appear.
-            val uri = androidx.compose.ui.platform.LocalUriHandler.current
-            Column(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 10.dp)) {
-                Fmt.credits(providers, repeaters.mapNotNull { it.repeater }).forEach { credit ->
-                    Text(
-                        credit.attribution, style = OffsetTheme.type.caption,
-                        color = if (credit.url.isNotEmpty()) colors.accent else colors.secondaryLabel,
-                        modifier = if (credit.url.isNotEmpty()) Modifier.tappable("Open ${credit.displayName}") { uri.openUri(credit.url) } else Modifier,
-                    )
-                }
-            }
+            CreditLine(
+                Fmt.credits(providers, repeaters.mapNotNull { it.repeater }), OffsetTheme.type.caption,
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
+            )
         }
     }
 }

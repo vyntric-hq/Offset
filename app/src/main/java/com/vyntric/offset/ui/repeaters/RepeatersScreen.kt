@@ -4,6 +4,9 @@
  */
 package com.vyntric.offset.ui.repeaters
 
+import androidx.compose.ui.text.style.TextOverflow
+import com.vyntric.offset.ui.components.SourceBadge
+import com.vyntric.offset.ui.components.CreditLine
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -402,8 +405,16 @@ private fun RepeaterRow(r: Repeater, selected: Boolean, s: RepeatersUiState, onT
         }
         Column(Modifier.weight(1f).tappable("Show details", onOpen).padding(vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(r.callsign, style = OffsetTheme.type.headline, color = colors.label)
+                // The callsign gives way first, so the frequency and source badges always show.
+                Text(r.callsign, style = OffsetTheme.type.headline, color = colors.label, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Text("  ${Fmt.mhz(r.outputHz)}", style = OffsetTheme.type.mono, color = colors.label)
+                // Which chosen sources list it, when more than one is on.
+                if (s.providers.size > 1) {
+                    r.listings.map { it.source }.filter { it in s.providers }.distinct().forEach { src ->
+                        SourceBadge(src, Modifier.padding(start = 6.dp))
+                    }
+                }
             }
             Text(Fmt.repeaterSummary(r), style = OffsetTheme.type.subhead, color = colors.secondaryLabel, maxLines = 2)
         }
@@ -423,21 +434,9 @@ private fun RepeaterRow(r: Repeater, selected: Boolean, s: RepeatersUiState, onT
 
 @Composable
 private fun Attribution(s: RepeatersUiState, onRefresh: () -> Unit) {
-    val uri = LocalUriHandler.current
     val colors = OffsetTheme.colors
     Column(Modifier.fillMaxWidth().padding(horizontal = Dimens.gutter * 2, vertical = 20.dp)) {
-        Fmt.credits(s.providers, s.results.orEmpty()).forEach { credit ->
-            if (credit.url.isNotEmpty()) {
-                Text(
-                    credit.attribution,
-                    style = OffsetTheme.type.footnote,
-                    color = colors.accent,
-                    modifier = Modifier.tappable("Open ${credit.displayName}") { uri.openUri(credit.url) },
-                )
-            } else {
-                Text(credit.attribution, style = OffsetTheme.type.footnote, color = colors.secondaryLabel)
-            }
-        }
+        CreditLine(Fmt.credits(s.providers, s.results.orEmpty()), OffsetTheme.type.footnote)
         val at = s.fetchedAt ?: s.cachedAt
         if (at != null) {
             Row(Modifier.padding(top = 4.dp)) {

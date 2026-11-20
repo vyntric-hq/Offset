@@ -4,6 +4,8 @@
  */
 package com.vyntric.offset.ui.settings
 
+import androidx.compose.foundation.layout.width
+import com.vyntric.offset.ui.components.SourceBadge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
@@ -75,6 +77,7 @@ fun SettingsScreen(container: AppContainer, onAbout: () -> Unit) {
                                 RepeaterSource.CSV -> "Your imported list"
                                 else -> null
                             },
+                            leading = { Box(Modifier.width(34.dp)) { SourceBadge(src) } },
                             trailing = {
                                 if (on) Icon(Icons.Rounded.Check, contentDescription = "On", tint = OffsetTheme.colors.accent)
                             },

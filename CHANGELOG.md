@@ -7,6 +7,17 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-11-20
+
+### Changed
+
+- Staging: channels move only after tapping Reorder (next to Clear); Done locks the order again,
+  so scrolling never reorders by accident.
+- Repeater results show a small badge for each source that lists them (RB, HH, CSV) when more
+  than one source is on; Settings shows the same badges next to the sources.
+- Credits are one line, such as "Data courtesy of RepeaterBook.com and Hearham.com", each name
+  linked, on the results, the map and Reach.
+
 ## [0.7.2] - 2026-11-20
 
 ### Changed
