@@ -72,8 +72,8 @@ class ZonesTest {
     @Test fun `a set for a zone radio says why it has no zones`() {
         val noRead = com.vyntric.offset.ui.radio.RadioUiState(radioType = Rt950ProDriver)
         assertEquals("Read the radio", noRead.zonesMissing)
-        val blank = Rt950ProImage.of(sample.bytes().also { it.fill(0xFF.toByte(), Rt950ProImage.ZONE_NAMES.first, Rt950ProImage.ZONE_NAMES.last + 1) })
-        assertEquals("Not found on this radio", noRead.copy(snapshot = RadioSession.Snapshot(blank, 0)).zonesMissing)
+        val binary = Rt950ProImage.of(sample.bytes().also { it[Rt950ProImage.ZONE_NAMES.first + 2] = 0x05 })
+        assertEquals("Not found", noRead.copy(snapshot = RadioSession.Snapshot(binary, 0)).zonesMissing)
         assertNull(noRead.copy(zones = zones).zonesMissing)
         assertNull(com.vyntric.offset.ui.radio.RadioUiState().zonesMissing)
     }
@@ -104,9 +104,26 @@ class ZonesTest {
         assertEquals("Trip (2)", naming(sim.currentImage().withZoneNames(staged.renamed(1, "Marine").names), "Trip").name)
     }
 
-    @Test fun `zone names are left out on a radio whose read shows none`() = runTest {
+    @Test fun `a radio never given zone names gets them on a write`() = runTest {
         val blank = Rt950ProImage.of(sample.bytes().also { it.fill(0xFF.toByte(), Rt950ProImage.ZONE_NAMES.first, Rt950ProImage.ZONE_NAMES.last + 1) })
         val sim = Rt950ProDriver.simulator(blank) as Rt950ProSimulator
+        val link = SimLink(sim)
+        val library = MemoryLibrary()
+        val session = RadioSession()
+        val read = ReadRadio(link, library, session, fixedClock, Sleeper.NONE) { Rt950ProDriver }.invoke {}
+        val staged = StagedZones.of(read.image)!!
+        assertEquals(List(10) { "" }, staged.names)
+        val outcome = WriteRadio(link, library, session, fixedClock, Sleeper.NONE)(
+            WriteRadio.Request(WriteRadio.Content.Channels(read.image.channels(), staged.renamed(0, "Repeaters").renamed(1, "CB").names), "Trip", read.image.identity, Rt950ProDriver),
+        ) {}
+        assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Verified)
+        assertEquals(241, (outcome as WriteRadio.Outcome.Verified).blocksWritten)
+        assertEquals(listOf("Repeaters", "CB", ""), sim.currentImage().namedZones!!.names.take(3))
+    }
+
+    @Test fun `zone names are left out on a radio whose read shows none`() = runTest {
+        val binary = Rt950ProImage.of(sample.bytes().also { it[Rt950ProImage.ZONE_NAMES.first + 2] = 0x05 })
+        val sim = Rt950ProDriver.simulator(binary) as Rt950ProSimulator
         val link = SimLink(sim)
         val library = MemoryLibrary()
         val session = RadioSession()

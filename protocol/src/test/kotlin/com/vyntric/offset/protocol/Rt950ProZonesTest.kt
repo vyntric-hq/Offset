@@ -36,13 +36,15 @@ class Rt950ProZonesTest {
         assertEquals(sample, sample.withZoneNames(defaults))
     }
 
-    @Test fun `a blank name or the wrong count is refused`() {
-        for (bad in listOf(names(1 to "   "), defaults.take(9))) {
-            try {
-                sample.withZoneNames(bad); fail()
-            } catch (_: IllegalArgumentException) {
-            }
+    @Test fun `the wrong count is refused, and a name cleared to blank is padded out`() {
+        try {
+            sample.withZoneNames(defaults.take(9)); fail()
+        } catch (_: IllegalArgumentException) {
         }
+        val cleared = sample.withZoneNames(names(1 to "   "))
+        assertEquals("", cleared.namedZones!!.names[1])
+        val zone2 = Rt950ProImage.ZONE_NAMES.first + 16
+        assertTrue((zone2 until zone2 + 12).all { cleared.bytes()[it] == 0xFF.toByte() })
     }
 
     @Test fun `a zone the radio holds blank can stay blank while another is renamed`() {
@@ -61,11 +63,27 @@ class Rt950ProZonesTest {
     }
 
     @Test fun `bytes that are not names mean no zones, and their memory is not writable`() {
-        val blank = Rt950ProImage.of(sample.bytes().also { it.fill(0xFF.toByte(), Rt950ProImage.ZONE_NAMES.first, Rt950ProImage.ZONE_NAMES.last + 1) })
-        assertNull(blank.namedZones)
         val binary = Rt950ProImage.of(sample.bytes().also { it[Rt950ProImage.ZONE_NAMES.first + 2] = 0x05 })
         assertNull(binary.namedZones)
-        assertFalse(blank.differsOnlyInWritableRegions(sample))
+        assertFalse(binary.differsOnlyInWritableRegions(sample))
+    }
+
+    @Test fun `a radio never given zone names has ten blank zones that can be named and written`() {
+        // As read from a firmware 0.29 radio that shows "Zone1": the whole block is 0xFF.
+        val blank = Rt950ProImage.of(sample.bytes().also { it.fill(0xFF.toByte(), Rt950ProImage.ZONE_NAMES.first, Rt950ProImage.ZONE_NAMES.last + 1) })
+        assertEquals(List(10) { "" }, blank.namedZones!!.names)
+        val sim = Rt950ProDriver.simulator(blank) as Rt950ProSimulator
+        val before = clone(sim).download() as Rt950ProImage
+        assertEquals(240, clone(sim).upload(before.withChannel(0, Channel(146_520_000, name = "CALL")), before))
+        val before2 = clone(sim).download() as Rt950ProImage
+        val renamed = before2.withZoneNames(List(10) { "" }.toMutableList().also { it[0] = "Repeaters"; it[1] = "CB" })
+        assertEquals(241, clone(sim).upload(renamed, before2))
+        val after = clone(sim).download()
+        assertEquals(listOf("Repeaters", "CB", ""), after.namedZones!!.names.take(3))
+        val b = after.bytes(); val o = Rt950ProImage.ZONE_NAMES.first
+        assertEquals("Repeaters", String(ByteArray(9) { b[o + it] }, Charsets.US_ASCII))
+        assertTrue((o + 9 until o + 16).all { b[it] == 0xFF.toByte() })
+        assertTrue((o + 32 until o + 160).all { b[it] == 0xFF.toByte() })
     }
 
     @Test fun `an image saved before zone names loads without namedZones and restores channels only`() {
@@ -99,8 +117,8 @@ class Rt950ProZonesTest {
     }
 
     @Test fun `zone names are not written to a radio whose read shows none`() {
-        val blank = Rt950ProImage.of(sample.bytes().also { it.fill(0xFF.toByte(), Rt950ProImage.ZONE_NAMES.first, Rt950ProImage.ZONE_NAMES.last + 1) })
-        val sim = Rt950ProDriver.simulator(blank) as Rt950ProSimulator
+        val binary = Rt950ProImage.of(sample.bytes().also { it[Rt950ProImage.ZONE_NAMES.first + 2] = 0x05 })
+        val sim = Rt950ProDriver.simulator(binary) as Rt950ProSimulator
         val before = clone(sim).download() as Rt950ProImage
         try {
             clone(sim).upload(sample, before); fail()

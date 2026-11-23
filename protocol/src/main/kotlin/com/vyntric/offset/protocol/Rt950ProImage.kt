@@ -36,9 +36,10 @@ data class Rt950ProSegment(
  * before 0.7.7 end after APRS ([LEGACY_SIZE]); they have no zone names and are still accepted.
  *
  * Zones: firmware 0.24 and later groups the channels into 10 zones of 99 and keeps the zone names
- * at radio 0xC000 (PE1HVH's CHIRP driver, confirmed on hardware with firmware 0.29; the radio's
- * defaults are "ZoneOne" to "ZoneTen"). The firmware version is not readable over the cable, so
- * [namedZones] trusts that block only when all ten slots hold printable ASCII and one is not empty.
+ * at radio 0xC000 (PE1HVH's CHIRP driver, confirmed on hardware with firmware 0.29). A radio never
+ * given names holds the block blank (0xFF) and shows "Zone1" and so on; PE1HVH's driver reads that
+ * as ten empty names. The firmware version is not readable over the cable, so [namedZones] trusts
+ * the block when every slot is printable ASCII or blank.
  * Offset keeps to channels 1 to 960 (zone 10 ends at its channel 69): on older firmware the bytes
  * after 0x7800 are not channels.
  */
@@ -112,15 +113,13 @@ class Rt950ProImage private constructor(private val data: ByteArray) : RadioImag
             if (text.any { it !in 0x20..0x7E }) return null
             String(CharArray(text.size) { text[it].toChar() }).trim()
         }
-        if (names.all { it.isEmpty() }) return null
         return RadioZones(names, ZONE_SIZE, ZONE_NAME_LENGTH)
     }
 
     /**
      * Renames the zones. An unchanged name keeps its exact bytes; a changed one is written in
      * printable ASCII, at most 12 characters, padded with the byte its slot already used (after
-     * PE1HVH's encode_zone_names). A renamed zone may not be blank: [namedZones] relies on names
-     * to tell zone firmware apart. A zone the radio already holds blank can stay blank.
+     * PE1HVH's encode_zone_names). A zone renamed to blank is padded out.
      */
     override fun withZoneNames(names: List<String>): Rt950ProImage {
         val current = requireNotNull(namedZones) { "This RT-950 Pro image has no zone names" }
@@ -131,7 +130,6 @@ class Rt950ProImage private constructor(private val data: ByteArray) : RadioImag
             if (raw == current.names[z]) return@forEachIndexed
             val name = RadioZones.clean(raw, ZONE_NAME_LENGTH)
             if (name == current.names[z]) return@forEachIndexed
-            require(name.isNotEmpty()) { "Zone ${z + 1} needs a name" }
             val o = ZONE_NAMES_OFFSET + z * ZONE_STRIDE
             val old = out.copyOfRange(o, o + ZONE_STRIDE)
             val used = old.indexOfFirst { it == 0.toByte() || it == 0xFF.toByte() }.let { if (it < 0) ZONE_STRIDE else it }

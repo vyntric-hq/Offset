@@ -7,6 +7,15 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.9] - 2026-11-23
+
+### Fixed
+
+- RT-950 Pro: a radio whose zones were never named now has zones in Offset. Its name block is
+  blank, which Offset took to mean no zones ("Not found on this radio"). Blank zones show as
+  "Zone 1" to "Zone 10" and can be named and written like any other.
+- The Set section's zones row no longer cuts off its text.
+
 ## [0.7.8] - 2026-11-22
 
 ### Added

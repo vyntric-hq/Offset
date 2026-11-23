@@ -393,7 +393,8 @@ fun ChannelEditorSheet(
 }
 
 /** "3 · CB": a zone's number and name. */
-fun zoneLabel(zone: Int, names: List<String>): String = "${zone + 1} · ${names.getOrElse(zone) { "" }}".trimEnd(' ', '·')
+fun zoneLabel(zone: Int, names: List<String>): String =
+    names.getOrElse(zone) { "" }.ifBlank { null }?.let { "${zone + 1} · $it" } ?: "Zone ${zone + 1}"
 
 /** One radio declared option, drawn as the control that suits its kind. */
 @Composable

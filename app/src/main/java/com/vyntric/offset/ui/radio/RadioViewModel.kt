@@ -75,7 +75,7 @@ data class RadioUiState(
     val zonesMissing: String?
         get() = when {
             zones != null || !(setBase?.driver ?: radioType).hasNamedZones -> null
-            snapshot != null && snapshot.image.driver.hasNamedZones && snapshot.image.namedZones == null -> "Not found on this radio"
+            snapshot != null && snapshot.image.driver.hasNamedZones && snapshot.image.namedZones == null -> "Not found"
             else -> "Read the radio"
         }
 
@@ -169,7 +169,7 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
         if (r.didNotFit == 0) clearMessageLater()
     }
 
-    private fun zoneTitle(zone: Int) = state.value.zones?.names?.getOrNull(zone)?.let { "Zone ${zone + 1} ($it)" } ?: "Zone ${zone + 1}"
+    private fun zoneTitle(zone: Int) = state.value.zones?.names?.getOrNull(zone)?.ifBlank { null }?.let { "Zone ${zone + 1} ($it)" } ?: "Zone ${zone + 1}"
 
     init {
         // Read results arrive here even if the read finished while the screen was away.

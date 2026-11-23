@@ -438,13 +438,16 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     10 zone names of 16 bytes at radio 0xC000 and groups channels 10 x 99 (PE1HVH's CHIRP driver,
     tested on firmware 0.29; Hertzz58's firmware notes give the defaults "ZoneOne" to "ZoneTen").
     The firmware version is not readable over the cable, so Offset treats the block as zone names
-    only when all ten slots hold printable ASCII and one is not empty. Otherwise there are no zones
-    and 0xC000 is never written. Older firmware (15 x 64) has no known names location.
+    when every slot holds printable ASCII or is blank. Otherwise there are no zones and 0xC000 is
+    never written. Older firmware (15 x 64) has no known names location. Until 0.7.9 an all-blank
+    block also meant no zones; a user's firmware 0.29 radio, never given zone names, read all
+    0xFF there while showing "Zone1" with channel 67 in zone 1, so blank names are zones, as in
+    PE1HVH's driver. An older-firmware radio with a blank 0xC000 would now show zones too.
 126. **Writing RT-950 Pro zone names is an exception to rule 3 (0.7.7):** the user asked to
     manage zone names on the radio. Only the 0xC000 blocks whose bytes changed are written, in
     the same session after the channels, as PE1HVH's driver does; the read back checks them.
-    Names are printable ASCII, at most 12 characters (the CPS limit), and never blank, since
-    detection relies on them.
+    Names are printable ASCII, at most 12 characters (the CPS limit); a name cleared to blank is
+    padded out with the slot's padding byte.
 127. **Offset still writes channels 1 to 960 on the RT-950 Pro (0.7.7):** on zone firmware,
     channels 961 to 990 (zone 10, channels 70 to 99) sit at 0x7800 to 0x7BBF, where older
     firmware may keep calibration-like data (NeonPlug). Without a firmware version Offset cannot
