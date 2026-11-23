@@ -150,6 +150,36 @@ class BuildStaging(private val newKey: () -> Long) {
         return ZoneMove(list, moved, didNotFit)
     }
 
+    data class Placement(val staging: List<StagedChannel>, val moved: Int, val didNotFit: Int)
+
+    /**
+     * Moves the entries [keys] together, in their current order, to just before [anchor] (or just
+     * after it when [after]). Like [move], the used slots stay the same and the entries are
+     * permuted across them, so gaps stay where they are. With zones, the entries first move into
+     * [anchor]'s zone and only that zone is reordered; those that do not fit stay where they are.
+     * Radios with [StagingTarget.fixedSlots] never renumber channels, so nothing moves.
+     */
+    fun place(current: List<StagedChannel>, keys: Set<Long>, anchor: Long, after: Boolean, target: StagingTarget): Placement {
+        val original = sorted(current)
+        val anchorEntry = original.firstOrNull { it.key == anchor }
+        if (target.fixedSlots || anchorEntry == null || anchor in keys) return Placement(original, 0, 0)
+        val order = original.withIndex().associate { (i, s) -> s.key to i }
+        val zones = target.zones?.zones
+        val zone = zones?.zoneOf(anchorEntry.slot)
+        val (list, didNotFit) = if (zone == null) original to 0 else moveAllToZone(original, keys, zone, target).let { it.staging to it.didNotFit }
+        val group = if (zones == null) list else list.filter { zones.zoneOf(it.slot) == zone }
+        val chosen = group.filter { it.key in keys }.sortedBy { order.getValue(it.key) }
+        val rest = group.filterNot { it.key in keys }
+        val at = rest.indexOfFirst { it.key == anchor } + if (after) 1 else 0
+        val ordered = rest.toMutableList().apply { addAll(at, chosen) }
+        val slots = group.map { it.slot }
+        val renumbered = ordered.mapIndexed { i, s -> s.key to s.copy(slot = slots[i]) }.toMap()
+        return Placement(sorted(list.map { renumbered[it.key] ?: it }), chosen.size, didNotFit)
+    }
+
+    /** Removes the entries [keys]; their slots are left empty. */
+    fun removeAll(current: List<StagedChannel>, keys: Set<Long>): List<StagedChannel> = current.filterNot { it.key in keys }
+
     /**
      * Packs channels into slots 1..n in their current order, for users who want no gaps. With
      * zones, each zone is packed from its own first slot and no channel changes zone.

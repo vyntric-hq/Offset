@@ -169,6 +169,27 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
         if (r.didNotFit == 0) clearMessageLater()
     }
 
+    /** Moves the checked channels together before (or after) [anchor]. */
+    fun place(keys: Set<Long>, anchor: Long, after: Boolean) = viewModelScope.launch {
+        val target = state.value.target
+        val r = c.staging.update { list -> c.buildStaging.place(list, keys, anchor, after, target).let { it.staging to it } }
+        val zone = state.value.zones?.zones?.let { z -> c.staging.get().firstOrNull { it.key == anchor }?.let { z.zoneOf(it.slot) } }
+        transient.value = when {
+            r.didNotFit > 0 && zone != null -> null to "Moved ${channels(r.moved)}. ${r.didNotFit} did not fit in ${zoneTitle(zone)}."
+            else -> "Moved ${channels(r.moved)}." to null
+        }
+        if (r.didNotFit == 0) clearMessageLater()
+    }
+
+    /** Removes the checked channels from staging. */
+    fun removeAll(keys: Set<Long>) = viewModelScope.launch {
+        val removed = c.staging.update { list -> c.buildStaging.removeAll(list, keys).let { it to list.size - it.size } }
+        transient.value = "Removed ${channels(removed)}." to null
+        clearMessageLater()
+    }
+
+    private fun channels(n: Int) = if (n == 1) "1 channel" else "$n channels"
+
     private fun zoneTitle(zone: Int) = state.value.zones?.names?.getOrNull(zone)?.ifBlank { null }?.let { "Zone ${zone + 1} ($it)" } ?: "Zone ${zone + 1}"
 
     init {

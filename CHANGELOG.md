@@ -7,6 +7,19 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-23
+
+### Added
+
+- Radio: Select. Tap it above staging, check channels, then tap "Move or remove". Checked
+  channels move together, in their list order, to the top, to the bottom, or before a channel
+  you pick; on a radio with zones they can also go to a zone, and placing them by a channel in
+  another zone moves them into that zone. They can also be removed together.
+
+### Changed
+
+- "Move to zone" above staging is now part of Select.
+
 ## [0.7.9] - 2026-11-23
 
 ### Fixed

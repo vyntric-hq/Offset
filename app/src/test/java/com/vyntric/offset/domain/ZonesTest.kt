@@ -69,6 +69,46 @@ class ZonesTest {
         assertEquals(1, tight.didNotFit)
     }
 
+    @Test fun `checked channels are placed together before or after a channel`() {
+        val plain = StagingTarget.of(sample)
+        var k = 100L
+        // Slots 0, 1, 2, 4, 5: a gap at 3 that stays a gap.
+        val list = listOf(0, 1, 2, 4, 5).mapIndexed { i, slot -> StagedChannel(++k, ch(146.0 + i / 100.0, "C$i"), ChannelOrigin.MANUAL, slot = slot) }
+        fun names(l: List<StagedChannel>) = l.sortedBy { it.slot }.map { it.channel.name }
+        fun slots(l: List<StagedChannel>) = l.sortedBy { it.slot }.map { it.slot }
+        // C3 and C1 (checked in that order) go to the top in list order.
+        val top = build.place(list, setOf(list[3].key, list[1].key), list[0].key, after = false, plain)
+        assertEquals(listOf("C1", "C3", "C0", "C2", "C4"), names(top.staging))
+        assertEquals(listOf(0, 1, 2, 4, 5), slots(top.staging))
+        assertEquals(2, top.moved)
+        val bottom = build.place(list, setOf(list[0].key, list[1].key), list[4].key, after = true, plain)
+        assertEquals(listOf("C2", "C3", "C4", "C0", "C1"), names(bottom.staging))
+        val before = build.place(list, setOf(list[4].key), list[1].key, after = false, plain)
+        assertEquals(listOf("C0", "C4", "C1", "C2", "C3"), names(before.staging))
+        // The anchor itself checked, an unknown anchor, or a fixed-slot radio: nothing moves.
+        assertEquals(0, build.place(list, setOf(list[0].key), list[0].key, after = false, plain).moved)
+        assertEquals(0, build.place(list, setOf(list[0].key), 999, after = false, plain).moved)
+        assertEquals(list, build.place(list, setOf(list[2].key), list[0].key, after = false, plain.copy(fixedSlots = true)).staging)
+        assertEquals(listOf("C0", "C2", "C4"), names(build.removeAll(list, setOf(list[1].key, list[3].key))))
+    }
+
+    @Test fun `with zones, placed channels join the anchor's zone and other zones keep theirs`() {
+        var k = 200L
+        // Zone 1: A (0), B (1). Zone 2: X (99), Y (100).
+        val list = listOf(0 to "A", 1 to "B", 99 to "X", 100 to "Y").map { (slot, n) -> StagedChannel(++k, ch(146.0 + slot / 1000.0, n), ChannelOrigin.MANUAL, slot = slot) }
+        val r = build.place(list, setOf(list[1].key, list[3].key), list[2].key, after = false, target)
+        // B joins zone 2 before X with Y; A stays alone in zone 1.
+        assertEquals(listOf(0 to "A", 99 to "B", 100 to "Y", 101 to "X"), r.staging.map { it.slot to it.channel.name })
+        assertEquals(2, r.moved)
+        assertEquals(0, r.didNotFit)
+        // A full zone takes none; the checked channel stays put.
+        val full = (99 until 198).map { StagedChannel(++k, ch(147.0 + it / 1000.0), ChannelOrigin.MANUAL, slot = it) }
+        val r2 = build.place(list.take(2) + full, setOf(list[0].key), full[0].key, after = false, target)
+        assertEquals(1, r2.didNotFit)
+        assertEquals(0, r2.moved)
+        assertEquals(0, r2.staging.first { it.key == list[0].key }.slot)
+    }
+
     @Test fun `a set for a zone radio says why it has no zones`() {
         val noRead = com.vyntric.offset.ui.radio.RadioUiState(radioType = Rt950ProDriver)
         assertEquals("Read the radio", noRead.zonesMissing)

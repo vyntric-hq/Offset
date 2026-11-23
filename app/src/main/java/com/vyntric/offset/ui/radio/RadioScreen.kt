@@ -111,13 +111,13 @@ fun RadioScreen(container: AppContainer) {
     var presets by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf(false) }
     var zonesOpen by remember { mutableStateOf(false) }
-    // Choosing channels to move to a zone: tap rows to check them, then pick the zone.
+    // Select mode: tap rows to check them, then move them (in order or to a zone) or remove them.
     var choosing by rememberSaveable { mutableStateOf(false) }
     var checked by remember { mutableStateOf(emptySet<Long>()) }
-    var pickingZone by remember { mutableStateOf(false) }
+    var acting by remember { mutableStateOf(false) }
     // Only channels still staged count, so a removed one never moves.
     val chosen = checked.filterTo(mutableSetOf()) { k -> state.staging.any { it.key == k } }
-    val canChoose = state.zones != null && state.staging.isNotEmpty()
+    val canChoose = state.staging.isNotEmpty()
     LaunchedEffect(canChoose) { if (!canChoose) { choosing = false; checked = emptySet() } }
     fun endChoosing() { choosing = false; checked = emptySet() }
     BackHandler(enabled = choosing) { endChoosing() }
@@ -143,9 +143,9 @@ fun RadioScreen(container: AppContainer) {
         bottomBar = {
             Box(Modifier.fillMaxWidth().background(colors.chrome).padding(horizontal = Dimens.gutter, vertical = 16.dp)) {
                 if (choosing) PrimaryButton(
-                    text = if (chosen.isEmpty()) "Move to zone" else "Move ${channelCount(chosen.size)} to zone",
+                    text = if (chosen.isEmpty()) "Move or remove" else "Move or remove ${channelCount(chosen.size)}",
                     enabled = chosen.isNotEmpty(),
-                    onClick = { pickingZone = true },
+                    onClick = { acting = true },
                 ) else PrimaryButton(
                     text = if (state.staging.isEmpty()) "Write to radio" else "Write ${state.staging.size} channels to radio",
                     enabled = state.canWrite,
@@ -200,9 +200,9 @@ fun RadioScreen(container: AppContainer) {
                         modifier = Modifier.tappable("Stop choosing channels") { endChoosing() })
                     return@SectionHeader
                 }
-                if (state.zones != null && state.staging.isNotEmpty() && !reordering) {
-                    Text("Move to zone", style = OffsetTheme.type.footnote, color = colors.accent,
-                        modifier = Modifier.tappable("Choose channels to move to a zone") { choosing = true })
+                if (canChoose && !reordering) {
+                    Text("Select", style = OffsetTheme.type.footnote, color = colors.accent,
+                        modifier = Modifier.tappable("Select channels to move or remove") { choosing = true })
                 }
                 if (state.snapshot != null) {
                     Text("Load from radio", style = OffsetTheme.type.footnote, color = colors.accent,
@@ -277,7 +277,7 @@ fun RadioScreen(container: AppContainer) {
             }
             item(key = "staging-footer") {
                 SectionFooter(
-                    if (choosing) "Tap channels, then move them to a zone." else if (fixedSlots) {
+                    if (choosing) "Tap channels, then move or remove them." else if (fixedSlots) {
                         "Numbers are the radio's channel numbers. Channels keep their numbers on this radio because " +
                             "${state.target.fixedSlotsReason} Swipe left to remove."
                     } else {
@@ -339,25 +339,80 @@ fun RadioScreen(container: AppContainer) {
         SetNameSheet(state.setName, onDismiss = { naming = false }) { vm.setName(it); naming = false }
     }
     val zones = state.zones
-    if (pickingZone && zones != null) {
-        val used = state.staging.groupingBy { zones.zones.zoneOf(it.slot) }.eachCount()
-        OffsetSheet(onDismiss = { pickingZone = false }, title = "Move to zone", leadingAction = { BarAction("Cancel") { pickingZone = false } }) {
-            InsetSection(header = channelCount(chosen.size)) {
-                zones.names.indices.forEach { zone ->
-                    val free = zones.zones.slots(zone, state.target.capacity).count() - (used[zone] ?: 0)
-                    cell {
-                        CellRow(zoneLabel(zone, zones.names), value = "$free free", chevron = true, onClickLabel = "Move to zone ${zone + 1}") {
-                            vm.moveToZone(chosen, zone)
-                            pickingZone = false
-                            endChoosing()
+    if (acting && chosen.isNotEmpty()) {
+        SelectionSheet(
+            state = state,
+            chosen = chosen,
+            onDismiss = { acting = false },
+            onPlace = { anchor, after -> vm.place(chosen, anchor, after); acting = false; endChoosing() },
+            onZone = { zone -> vm.moveToZone(chosen, zone); acting = false; endChoosing() },
+            onRemove = { vm.removeAll(chosen); acting = false; endChoosing() },
+        )
+    }
+    if (zonesOpen && zones != null) {
+        ZonesSheet(zones, state.staging.groupingBy { zones.zones.zoneOf(it.slot) }.eachCount(), onDismiss = { zonesOpen = false }, onRename = vm::renameZone)
+    }
+}
+
+/**
+ * What to do with the checked channels: place them together at the top, at the bottom or before
+ * a chosen channel; move them to a zone; or remove them.
+ */
+@Composable
+private fun SelectionSheet(
+    state: RadioUiState,
+    chosen: Set<Long>,
+    onDismiss: () -> Unit,
+    onPlace: (anchor: Long, after: Boolean) -> Unit,
+    onZone: (Int) -> Unit,
+    onRemove: () -> Unit,
+) {
+    var pickingAnchor by rememberSaveable { mutableStateOf(false) }
+    val zones = state.zones
+    val others = state.staging.filterNot { it.key in chosen }
+    val canPlace = !state.target.fixedSlots && others.isNotEmpty()
+    OffsetSheet(
+        onDismiss = onDismiss,
+        title = if (pickingAnchor) "Move before" else channelCount(chosen.size),
+        leadingAction = { if (pickingAnchor) BarAction("Back") { pickingAnchor = false } else BarAction("Cancel", onClick = onDismiss) },
+        page = pickingAnchor,
+    ) {
+        BackHandler(enabled = pickingAnchor) { pickingAnchor = false }
+        if (pickingAnchor) {
+            val groups = if (zones == null) listOf(null to others) else others.groupBy { zones.zones.zoneOf(it.slot) }.toList()
+            groups.forEach { (zone, entries) ->
+                InsetSection(header = zone?.let { zoneLabel(it, zones!!.names) }) {
+                    entries.forEach { s ->
+                        val number = zones?.let { s.slot % it.zones.size + 1 } ?: (s.slot + 1)
+                        cell {
+                            CellRow("$number  ${s.channel.name.ifBlank { Fmt.mhz(s.channel.rxFreqHz) }}", onClickLabel = "Move before channel $number") { onPlace(s.key, false) }
                         }
                     }
                 }
             }
+        } else {
+            if (canPlace) {
+                InsetSection(header = "Order") {
+                    cell { CellRow("To the top", onClickLabel = "Move to the top") { onPlace(others.first().key, false) } }
+                    cell { CellRow("To the bottom", onClickLabel = "Move to the bottom") { onPlace(others.last().key, true) } }
+                    cell { CellRow("Before a channel", chevron = true, onClickLabel = "Choose a channel") { pickingAnchor = true } }
+                }
+            }
+            if (zones != null && !state.target.fixedSlots) {
+                val used = state.staging.groupingBy { zones.zones.zoneOf(it.slot) }.eachCount()
+                InsetSection(header = "Zone") {
+                    zones.names.indices.forEach { zone ->
+                        val free = zones.zones.slots(zone, state.target.capacity).count() - (used[zone] ?: 0)
+                        cell {
+                            CellRow(zoneLabel(zone, zones.names), value = "$free free", chevron = true, onClickLabel = "Move to zone ${zone + 1}") { onZone(zone) }
+                        }
+                    }
+                }
+            }
+            InsetSection {
+                cell { ButtonRow("Remove ${channelCount(chosen.size)}", destructive = true, onClick = onRemove) }
+            }
         }
-    }
-    if (zonesOpen && zones != null) {
-        ZonesSheet(zones, state.staging.groupingBy { zones.zones.zoneOf(it.slot) }.eachCount(), onDismiss = { zonesOpen = false }, onRename = vm::renameZone)
     }
 }
 

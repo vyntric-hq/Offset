@@ -128,21 +128,49 @@ class RadioScreenUiTest {
         }
         rule.waitUntil(10_000) { rule.onAllNodesWithText("Read the radio").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Read the radio").performClick()
-        rule.waitUntil(60_000) { rule.onAllNodesWithText("Move to zone").fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(60_000) { rule.onAllNodesWithText("1 · ZONEONE").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("1 · ZONEONE").assertExists()
         // The staging header sits low on a phone; scroll it clear of the bottom bar first.
         rule.onAllNodes(hasScrollAction())[0].performTouchInput { swipeUp() }
-        rule.onNodeWithText("Move to zone").performClick()
-        rule.onNodeWithText("Tap channels, then move them to a zone.").assertExists()
+        rule.onNodeWithText("Select").performClick()
+        rule.onNodeWithText("Tap channels, then move or remove them.").assertExists()
         for (name in listOf("CALLING", "RPT 2M")) {
             rule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText(name, substring = true))
             rule.onNodeWithText(name, substring = true).performClick()
         }
-        rule.onNodeWithText("Move 2 channels to zone").performClick()
+        rule.onNodeWithText("Move or remove 2 channels").performClick()
         rule.onNodeWithText("2 · ZoneTwo").performClick()
         rule.waitUntil(5_000) { runBlocking { c.staging.get().count { it.slot in 99 until 198 } == 2 } }
         rule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText("2 · ZONETWO"))
         rule.onNodeWithText("2 · ZONETWO").assertExists()
         rule.onNodeWithText("Write 6 channels to radio").assertExists()
+    }
+    /** Checked channels move to the top together in list order, and can be removed together. */
+    @Test fun selectedChannelsMoveToTheTopAndRemoveTogether() {
+        val c = (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as OffsetApp).container
+        val names = listOf("ALPHA", "BRAVO", "CHARLIE", "DELTA")
+        runBlocking {
+            c.staging.put(names.mapIndexed { i, n ->
+                com.vyntric.offset.domain.StagedChannel(1_000L + i, com.vyntric.offset.protocol.Channel(146_400_000L + i * 20_000L, name = n), com.vyntric.offset.domain.ChannelOrigin.MANUAL, slot = i)
+            })
+        }
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("DELTA", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.onAllNodes(hasScrollAction())[0].performTouchInput { swipeUp() }
+        rule.onNodeWithText("Select").performClick()
+        rule.onNodeWithText("Tap channels, then move or remove them.").assertExists()
+        // Checked out of order; they still keep their list order.
+        for (name in listOf("DELTA", "CHARLIE")) {
+            rule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText(name, substring = true))
+            rule.onNodeWithText(name, substring = true).performClick()
+        }
+        rule.onNodeWithText("Move or remove 2 channels").performClick()
+        rule.onNodeWithText("To the top").performClick()
+        rule.waitUntil(5_000) { runBlocking { c.staging.get().sortedBy { it.slot }.map { it.channel.name } == listOf("CHARLIE", "DELTA", "ALPHA", "BRAVO") } }
+        rule.onNodeWithText("Select").performClick()
+        rule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText("BRAVO", substring = true))
+        rule.onNodeWithText("BRAVO", substring = true).performClick()
+        rule.onNodeWithText("Move or remove 1 channel").performClick()
+        rule.onNodeWithText("Remove 1 channel").performClick()
+        rule.waitUntil(5_000) { runBlocking { c.staging.get().map { it.channel.name }.toSet() == setOf("CHARLIE", "DELTA", "ALPHA") } }
     }
 }
