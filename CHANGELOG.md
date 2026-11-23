@@ -7,6 +7,19 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.8] - 2026-11-22
+
+### Added
+
+- Radio: Move to zone. Tap it above staging, check channels, then pick a zone to move them all
+  there in their order. Each zone shows how many free channels it has.
+
+### Changed
+
+- An RT-950 Pro set without zones now says why in the Set section: "Read the radio" (tap it to
+  read), or "Not found on this radio" when a read held no zone names. Sets loaded from images
+  saved before 0.7.7 have no zones until the radio is read; the read keeps the staged channels.
+
 ## [0.7.7] - 2026-11-22
 
 ### Added

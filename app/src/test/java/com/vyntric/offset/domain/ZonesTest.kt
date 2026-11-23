@@ -55,6 +55,29 @@ class ZonesTest {
         assertFalse(build.hasGaps(packed, target))
     }
 
+    @Test fun `checked channels move to a zone together, in order, and what does not fit stays`() {
+        val list = listOf(0, 1, 2, 120).map { StagedChannel(++key, ch(146.0 + it / 1000.0), ChannelOrigin.MANUAL, slot = it) }
+        val r = build.moveAllToZone(list, setOf(list[0].key, list[2].key, list[3].key), 2, target)
+        assertEquals(3, r.moved)
+        assertEquals(listOf(list[1].key to 1, list[0].key to 198, list[2].key to 199, list[3].key to 200), r.staging.map { it.key to it.slot })
+        // Already there: nothing moves.
+        assertEquals(0, build.moveAllToZone(r.staging, setOf(list[0].key), 2, target).moved)
+        // A nearly full zone takes what fits.
+        val fill = (99 until 197).map { StagedChannel(++key, ch(147.0 + it / 1000.0), ChannelOrigin.MANUAL, slot = it) }
+        val tight = build.moveAllToZone(list + fill, setOf(list[0].key, list[1].key), 1, target)
+        assertEquals(1, tight.moved)
+        assertEquals(1, tight.didNotFit)
+    }
+
+    @Test fun `a set for a zone radio says why it has no zones`() {
+        val noRead = com.vyntric.offset.ui.radio.RadioUiState(radioType = Rt950ProDriver)
+        assertEquals("Read the radio", noRead.zonesMissing)
+        val blank = Rt950ProImage.of(sample.bytes().also { it.fill(0xFF.toByte(), Rt950ProImage.ZONE_NAMES.first, Rt950ProImage.ZONE_NAMES.last + 1) })
+        assertEquals("Not found on this radio", noRead.copy(snapshot = RadioSession.Snapshot(blank, 0)).zonesMissing)
+        assertNull(noRead.copy(zones = zones).zonesMissing)
+        assertNull(com.vyntric.offset.ui.radio.RadioUiState().zonesMissing)
+    }
+
     @Test fun `a full zone refuses a move`() {
         val full = (0 until 99).map { StagedChannel(++key, ch(146.0 + it / 1000.0), ChannelOrigin.MANUAL, slot = it) }
         val other = StagedChannel(++key, ch(147.0), ChannelOrigin.MANUAL, slot = 150)

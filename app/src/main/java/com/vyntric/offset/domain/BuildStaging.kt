@@ -131,6 +131,25 @@ class BuildStaging(private val newKey: () -> Long) {
         return sorted(current.map { if (it.key == key) it.copy(slot = free) else it })
     }
 
+    data class ZoneMove(val staging: List<StagedChannel>, val moved: Int, val didNotFit: Int)
+
+    /**
+     * Moves the entries [keys] to [zone], in their current order, each to the zone's first free
+     * slot. Entries already in [zone] stay; those that do not fit stay where they are.
+     */
+    fun moveAllToZone(current: List<StagedChannel>, keys: Set<Long>, zone: Int, target: StagingTarget): ZoneMove {
+        val zones = target.zones?.zones
+        var list = sorted(current)
+        if (zones == null || target.fixedSlots) return ZoneMove(list, 0, 0)
+        var moved = 0
+        var didNotFit = 0
+        for (s in list.filter { it.key in keys && zones.zoneOf(it.slot) != zone }) {
+            val next = moveToZone(list, s.key, zone, target)
+            if (next == null) didNotFit++ else { list = next; moved++ }
+        }
+        return ZoneMove(list, moved, didNotFit)
+    }
+
     /**
      * Packs channels into slots 1..n in their current order, for users who want no gaps. With
      * zones, each zone is packed from its own first slot and no channel changes zone.

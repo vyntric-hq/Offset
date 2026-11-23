@@ -42,6 +42,9 @@ interface RadioDriver {
      */
     val fixedSlotsReason: String get() = ""
 
+    /** True when some images of this family carry renamable zones ([RadioImage.namedZones]). */
+    val hasNamedZones: Boolean get() = false
+
     /**
      * True when the radio does not answer a new clone session soon after one ends (the UV-5R
      * stays in clone mode until it times out, then restarts). A write then reads, writes and reads

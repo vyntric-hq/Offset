@@ -3,6 +3,11 @@ package com.vyntric.offset
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.test.performClick
@@ -25,7 +30,8 @@ class RadioScreenUiTest {
         app.container.settings.update { it.copy(simulatedRadio = true, radioType = com.vyntric.offset.protocol.Uv5rDriver.id) }
         runBlocking {
             app.container.simulatedLink.reset()
-            app.container.staging.clear()
+            // A full reset: clear() keeps the base image and zones on purpose.
+            app.container.staging.put(emptyList(), "", baseImageId = null, zones = null)
             app.container.radioSession.clear()
         }
     }
@@ -105,5 +111,38 @@ class RadioScreenUiTest {
         rule.waitUntil(120_000) { rule.onAllNodesWithText("Written and verified").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Done").performClick()
         assertEquals("Repeaters", c.radioSession.last.value!!.image.namedZones!!.names[0])
+    }
+
+    /**
+     * A set loaded from an image saved before zones has none; the Set section says to read the
+     * radio, the read brings the zones, and checked channels move to a zone together.
+     */
+    @Test fun oldImageGetsZonesFromAReadAndChannelsMoveTogether() {
+        val c = (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as OffsetApp).container
+        c.settings.update { it.copy(radioType = com.vyntric.offset.protocol.Rt950ProDriver.id) }
+        runBlocking {
+            val sample = com.vyntric.offset.protocol.Rt950ProDriver.sampleImage()
+            val legacy = com.vyntric.offset.protocol.Rt950ProImage.of(sample.bytes().copyOf(com.vyntric.offset.protocol.Rt950ProImage.LEGACY_SIZE))
+            val id = c.images.save(legacy, "Old RT-950 read", com.vyntric.offset.domain.ImageKind.USER)
+            c.staging.put(c.buildStaging.fromImage(legacy), "Panel", baseImageId = id, zones = null)
+        }
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("Read the radio").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Read the radio").performClick()
+        rule.waitUntil(60_000) { rule.onAllNodesWithText("Move to zone").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("1 · ZONEONE").assertExists()
+        // The staging header sits low on a phone; scroll it clear of the bottom bar first.
+        rule.onAllNodes(hasScrollAction())[0].performTouchInput { swipeUp() }
+        rule.onNodeWithText("Move to zone").performClick()
+        rule.onNodeWithText("Tap channels, then move them to a zone.").assertExists()
+        for (name in listOf("CALLING", "RPT 2M")) {
+            rule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText(name, substring = true))
+            rule.onNodeWithText(name, substring = true).performClick()
+        }
+        rule.onNodeWithText("Move 2 channels to zone").performClick()
+        rule.onNodeWithText("2 · ZoneTwo").performClick()
+        rule.waitUntil(5_000) { runBlocking { c.staging.get().count { it.slot in 99 until 198 } == 2 } }
+        rule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText("2 · ZONETWO"))
+        rule.onNodeWithText("2 · ZONETWO").assertExists()
+        rule.onNodeWithText("Write 6 channels to radio").assertExists()
     }
 }

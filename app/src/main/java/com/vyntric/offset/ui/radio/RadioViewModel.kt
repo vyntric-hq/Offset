@@ -68,6 +68,17 @@ data class RadioUiState(
     /** What staging is checked against: the exact model of the read or loaded image, else the selected type. */
     val target: StagingTarget get() = (setBase?.let { StagingTarget.of(it) } ?: StagingTarget.of(radioType)).copy(zones = zones)
 
+    /**
+     * Why a set for a radio with named zones shows none: the radio has not been read with zone
+     * support yet, or its read held no zone names. Null when there are zones or the radio has none.
+     */
+    val zonesMissing: String?
+        get() = when {
+            zones != null || !(setBase?.driver ?: radioType).hasNamedZones -> null
+            snapshot != null && snapshot.image.driver.hasNamedZones && snapshot.image.namedZones == null -> "Not found on this radio"
+            else -> "Read the radio"
+        }
+
     /** Zone names that differ from the radio read, which a write would rename. */
     val renamedZones: Int
         get() {
@@ -145,6 +156,17 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
         }
         // The edit itself is kept; only the move did not happen.
         if (full && zone != null) transient.value = null to "${zoneTitle(zone)} is full, so the channel stayed in its zone."
+    }
+
+    /** Moves the checked channels to [zone]. */
+    fun moveToZone(keys: Set<Long>, zone: Int) = viewModelScope.launch {
+        val target = state.value.target
+        val r = c.staging.update { list -> c.buildStaging.moveAllToZone(list, keys, zone, target).let { it.staging to it } }
+        transient.value = when {
+            r.didNotFit > 0 -> null to "Moved ${r.moved} to ${zoneTitle(zone)}. ${r.didNotFit} did not fit."
+            else -> "Moved ${r.moved} to ${zoneTitle(zone)}." to null
+        }
+        if (r.didNotFit == 0) clearMessageLater()
     }
 
     private fun zoneTitle(zone: Int) = state.value.zones?.names?.getOrNull(zone)?.let { "Zone ${zone + 1} ($it)" } ?: "Zone ${zone + 1}"

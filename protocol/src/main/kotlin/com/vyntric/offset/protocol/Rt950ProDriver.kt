@@ -26,6 +26,9 @@ object Rt950ProDriver : RadioDriver {
     override val chirpModels: Set<String> = setOf(Rt950ProImage.MODEL_NAME)
     override val cableAdvice = ""
 
+    /** Zone names at 0xC000 on firmware 0.24 and later; see [Rt950ProImage.namedZones]. */
+    override val hasNamedZones = true
+
     /** Only the 33,408 byte image, or 33,152 bytes as saved before 0.7.7; no other family uses those sizes. */
     override fun recognizes(bytes: ByteArray) = bytes.size == Rt950ProImage.SIZE || bytes.size == Rt950ProImage.LEGACY_SIZE
 

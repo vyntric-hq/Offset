@@ -6,6 +6,11 @@ package com.vyntric.offset.ui.radio
 
 import androidx.compose.ui.text.font.FontWeight
 import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -106,6 +111,16 @@ fun RadioScreen(container: AppContainer) {
     var presets by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf(false) }
     var zonesOpen by remember { mutableStateOf(false) }
+    // Choosing channels to move to a zone: tap rows to check them, then pick the zone.
+    var choosing by rememberSaveable { mutableStateOf(false) }
+    var checked by remember { mutableStateOf(emptySet<Long>()) }
+    var pickingZone by remember { mutableStateOf(false) }
+    // Only channels still staged count, so a removed one never moves.
+    val chosen = checked.filterTo(mutableSetOf()) { k -> state.staging.any { it.key == k } }
+    val canChoose = state.zones != null && state.staging.isNotEmpty()
+    LaunchedEffect(canChoose) { if (!canChoose) { choosing = false; checked = emptySet() } }
+    fun endChoosing() { choosing = false; checked = emptySet() }
+    BackHandler(enabled = choosing) { endChoosing() }
     // Drag handles only while reordering, so scrolling never moves a channel by accident.
     var reordering by rememberSaveable { mutableStateOf(false) }
     val canReorder = !fixedSlots && state.staging.size > 1
@@ -127,7 +142,11 @@ fun RadioScreen(container: AppContainer) {
         bottomBarHeight = 82.dp,
         bottomBar = {
             Box(Modifier.fillMaxWidth().background(colors.chrome).padding(horizontal = Dimens.gutter, vertical = 16.dp)) {
-                PrimaryButton(
+                if (choosing) PrimaryButton(
+                    text = if (chosen.isEmpty()) "Move to zone" else "Move ${channelCount(chosen.size)} to zone",
+                    enabled = chosen.isNotEmpty(),
+                    onClick = { pickingZone = true },
+                ) else PrimaryButton(
                     text = if (state.staging.isEmpty()) "Write to radio" else "Write ${state.staging.size} channels to radio",
                     enabled = state.canWrite,
                     busy = state.operation is RadioOperations.State.Running && (state.operation as RadioOperations.State.Running).kind == RadioOperations.Kind.WRITE,
@@ -154,6 +173,12 @@ fun RadioScreen(container: AppContainer) {
                     cell {
                         CellRow("Name", value = state.setName.ifBlank { SaveNamedImage.UNTITLED }, chevron = true, onClickLabel = "Rename the set") { naming = true }
                     }
+                    state.zonesMissing?.let { why ->
+                        cell {
+                            CellRow("Zones", value = why, enabled = why != "Read the radio" || (state.cableUsable && !state.busy),
+                                onClickLabel = "Read radio", onClick = if (why == "Read the radio") ({ vm.read() }) else null)
+                        }
+                    }
                     state.zones?.let { z ->
                         cell { CellRow("Zones", value = "${z.names.size}", chevron = true, onClickLabel = "Rename zones") { zonesOpen = true } }
                         cell {
@@ -170,6 +195,15 @@ fun RadioScreen(container: AppContainer) {
 
         item(key = "staging-header") {
             SectionHeader("Staging · ${state.staging.size} of $capacity") {
+                if (choosing) {
+                    Text("Done", style = OffsetTheme.type.footnote, color = colors.accent, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.tappable("Stop choosing channels") { endChoosing() })
+                    return@SectionHeader
+                }
+                if (state.zones != null && state.staging.isNotEmpty() && !reordering) {
+                    Text("Move to zone", style = OffsetTheme.type.footnote, color = colors.accent,
+                        modifier = Modifier.tappable("Choose channels to move to a zone") { choosing = true })
+                }
                 if (state.snapshot != null) {
                     Text("Load from radio", style = OffsetTheme.type.footnote, color = colors.accent,
                         modifier = Modifier.tappable { vm.loadFromRadio() })
@@ -225,7 +259,14 @@ fun RadioScreen(container: AppContainer) {
                                     staged = staged,
                                     problem = problems?.firstOrNull()?.message,
                                     handleModifier = if (reordering) Modifier.dragHandle(reorder, staged.key) { haptics.select() } else null,
-                                    onClick = { if (staged.channel.digitalMode == null) editing = staged else vm.explainDigital(staged.channel) },
+                                    selected = if (choosing) staged.key in chosen else null,
+                                    onClick = {
+                                        when {
+                                            choosing -> checked = if (staged.key in chosen) chosen - staged.key else chosen + staged.key
+                                            staged.channel.digitalMode == null -> editing = staged
+                                            else -> vm.explainDigital(staged.channel)
+                                        }
+                                    },
                                     onMoveUp = if (reordering && index > 0) ({ vm.move(staged.key, list[index - 1].key) }) else null,
                                     onMoveDown = if (reordering && index < list.lastIndex) ({ vm.move(staged.key, list[index + 1].key) }) else null,
                                 )
@@ -236,7 +277,7 @@ fun RadioScreen(container: AppContainer) {
             }
             item(key = "staging-footer") {
                 SectionFooter(
-                    if (fixedSlots) {
+                    if (choosing) "Tap channels, then move them to a zone." else if (fixedSlots) {
                         "Numbers are the radio's channel numbers. Channels keep their numbers on this radio because " +
                             "${state.target.fixedSlotsReason} Swipe left to remove."
                     } else {
@@ -298,6 +339,23 @@ fun RadioScreen(container: AppContainer) {
         SetNameSheet(state.setName, onDismiss = { naming = false }) { vm.setName(it); naming = false }
     }
     val zones = state.zones
+    if (pickingZone && zones != null) {
+        val used = state.staging.groupingBy { zones.zones.zoneOf(it.slot) }.eachCount()
+        OffsetSheet(onDismiss = { pickingZone = false }, title = "Move to zone", leadingAction = { BarAction("Cancel") { pickingZone = false } }) {
+            InsetSection(header = channelCount(chosen.size)) {
+                zones.names.indices.forEach { zone ->
+                    val free = zones.zones.slots(zone, state.target.capacity).count() - (used[zone] ?: 0)
+                    cell {
+                        CellRow(zoneLabel(zone, zones.names), value = "$free free", chevron = true, onClickLabel = "Move to zone ${zone + 1}") {
+                            vm.moveToZone(chosen, zone)
+                            pickingZone = false
+                            endChoosing()
+                        }
+                    }
+                }
+            }
+        }
+    }
     if (zonesOpen && zones != null) {
         ZonesSheet(zones, state.staging.groupingBy { zones.zones.zoneOf(it.slot) }.eachCount(), onDismiss = { zonesOpen = false }, onRename = vm::renameZone)
     }
@@ -424,6 +482,8 @@ private fun ProgressRow(running: RadioOperations.State.Running) {
 private fun StagedRow(
     /** The channel number the radio shows: within its zone on radios with zones. */
     number: Int,
+    /** Checked state while choosing channels; null otherwise. */
+    selected: Boolean? = null,
     numberColumn: Dp,
     staged: StagedChannel,
     problem: String?,
@@ -438,8 +498,10 @@ private fun StagedRow(
         onMoveUp?.let { CustomAccessibilityAction("Move up") { it(); true } },
         onMoveDown?.let { CustomAccessibilityAction("Move down") { it(); true } },
     )
+    val base = Modifier.fillMaxWidth().heightIn(min = 60.dp)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 60.dp).semantics { customActions = actions },
+        (if (selected == null) base.semantics { customActions = actions }
+        else base.toggleable(value = selected, role = Role.Checkbox, onValueChange = { onClick() })),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -450,7 +512,7 @@ private fun StagedRow(
             softWrap = false,
             modifier = Modifier.width(numberColumn).padding(start = Dimens.gutter),
         )
-        Column(Modifier.weight(1f).tappable(onClick = onClick).padding(vertical = 10.dp)) {
+        Column(Modifier.weight(1f).let { if (selected == null) it.tappable(onClick = onClick) else it }.padding(vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(Fmt.mhz(ch.rxFreqHz), style = OffsetTheme.type.mono, color = colors.label)
                 if (ch.name.isNotBlank()) {
@@ -464,7 +526,14 @@ private fun StagedRow(
                 maxLines = 2,
             )
         }
-        if (handleModifier != null) {
+        if (selected != null) {
+            Icon(
+                if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = if (selected) colors.accent else colors.tertiaryLabel,
+                modifier = Modifier.padding(horizontal = Dimens.gutter).size(24.dp),
+            )
+        } else if (handleModifier != null) {
             Box(
                 handleModifier.size(52.dp).semantics { contentDescription = "Reorder channel ${staged.slot + 1}" },
                 contentAlignment = Alignment.Center,
