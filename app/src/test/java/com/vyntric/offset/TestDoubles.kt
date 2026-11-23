@@ -57,6 +57,10 @@ class MemoryLibrary : ImageLibrary {
         return id
     }
     override suspend fun load(id: Long) = items[id]
+    override suspend fun userImagesNamed(base: String, recent: Int): com.vyntric.offset.domain.NameFamily {
+        val family = items.values.filter { it.kind == ImageKind.USER && com.vyntric.offset.domain.SaveNamedImage.inFamily(it.name, base) }
+        return com.vyntric.offset.domain.NameFamily(family.map { it.name }.toSet(), family.reversed().take(recent))
+    }
     override suspend fun hasFactoryImage(identity: String) =
         if (failHasFactory) throw IllegalStateException("database locked") else items.values.any { it.kind == ImageKind.FACTORY && it.image.identity == identity }
 }

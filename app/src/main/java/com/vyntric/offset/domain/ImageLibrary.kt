@@ -32,4 +32,17 @@ interface ImageLibrary {
     suspend fun save(image: RadioImage, name: String, kind: ImageKind, notes: String = ""): Long
     suspend fun load(id: Long): StoredImage?
     suspend fun hasFactoryImage(identity: String): Boolean
+
+    /**
+     * The names of user images named [base] or a numbered copy of it ("[base] (2)"), and the most
+     * recent [recent] of those images, see [SaveNamedImage].
+     */
+    suspend fun userImagesNamed(base: String, recent: Int): NameFamily
+}
+
+/** Every name taken in a name's family, and its most recent images for comparing channels. */
+data class NameFamily(val names: Set<String>, val recent: List<StoredImage>) {
+    companion object {
+        val EMPTY = NameFamily(emptySet(), emptyList())
+    }
 }

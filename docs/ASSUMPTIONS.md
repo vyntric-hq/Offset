@@ -420,3 +420,10 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     Whether the stock RT-950 Pro transmits AM, or needs a work mode set on the radio for CB, is
     unconfirmed; Offset writes only the channels. Generated image names from before 0.7.4 keep
     their timestamps: a typed name cannot be told apart from a generated one, so none is changed.
+122. **A saved set is an image (0.7.5):** the staged channels laid over the last read, so saving
+    needs a read. Two saves are the same set when the radio type and every channel slot match;
+    settings bytes are not compared, because the radio changes some (VFO frequencies) on its own.
+    Numbered copies follow Finder: "Name (2)", "Name (3)"; only user images count, and a match
+    anywhere in the numbered family is reused.
+123. **Marine 16 is receive only and MURS is at low power (0.7.5):** transmitting on marine
+    channels from land is not permitted for ordinary users, and MURS allows 2 W.

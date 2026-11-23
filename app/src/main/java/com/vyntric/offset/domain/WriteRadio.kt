@@ -35,6 +35,8 @@ class WriteRadio(
     private val session: RadioSession,
     private val clock: Clock,
     private val sleeper: Sleeper,
+    /** Saves the result under the request's name; shared so saves elsewhere see the same names. */
+    private val naming: SaveNamedImage = SaveNamedImage(library),
 ) {
     sealed interface Content {
         /** Up to the radio's capacity of slots, index = radio slot; null slots (and slots past the end) are cleared. */
@@ -46,7 +48,7 @@ class WriteRadio(
 
     data class Request(
         val content: Content,
-        /** Name for the resulting image in the library. */
+        /** Name for the resulting image in the library, numbered or matched by [SaveNamedImage]. */
         val resultName: String,
         /** Identity of the radio named on the confirmation sheet, if one had been read. */
         val confirmedIdentity: String?,
@@ -217,10 +219,10 @@ class WriteRadio(
         // The radio is already written; a storage failure here must not hide the result.
         var saveError: String? = null
         val savedId = try {
-            library.save(
-                readBack, request.resultName.ifBlank { "Written" }, ImageKind.USER,
+            naming(
+                readBack, request.resultName,
                 notes = if (mismatches.isEmpty()) "Written and verified." else "Verification found differences.",
-            )
+            ).id
         } catch (e: Exception) {
             saveError = "The radio was written, but the result could not be saved to Images: ${e.message ?: e.javaClass.simpleName}"
             null

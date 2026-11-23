@@ -43,6 +43,23 @@ class PresetsAndFiltersTest {
         assertFalse(SimplexPresets.CB.fits(RadioModel.UV5R))
     }
 
+    @Test fun `MURS preset is the five channels at low power, 1 to 3 narrow`() {
+        val murs = SimplexPresets.MURS.channels
+        assertEquals(listOf(151_820_000L, 151_880_000L, 151_940_000L, 154_570_000L, 154_600_000L), murs.map { it.rxFreqHz })
+        assertEquals(listOf("MURS1", "MURS2", "MURS3", "MURS4", "MURS5"), murs.map { it.name })
+        assertEquals(listOf(false, false, false, true, true), murs.map { it.wide })
+        assertTrue(murs.all { it.power == com.vyntric.offset.protocol.Power.LOW && it.txFreqHz == it.rxFreqHz })
+        assertTrue(SimplexPresets.MURS.fits(RadioModel.UV5R))
+    }
+
+    @Test fun `marine 16 is receive only`() {
+        val ch = SimplexPresets.MARINE16.channels.single()
+        assertEquals(156_800_000L, ch.rxFreqHz)
+        assertEquals("MAR16", ch.name)
+        assertEquals(null, ch.txFreqHz)
+        assertTrue(SimplexPresets.MARINE16.fits(RadioModel.UV5R))
+    }
+
     @Test fun `GMRS detection covers channels and repeater inputs only`() {
         assertTrue(Gmrs.isGmrs(462_562_500))
         assertTrue(Gmrs.isGmrs(467_725_000))

@@ -62,6 +62,22 @@ object SimplexPresets {
         },
     )
 
+    /** Marine VHF channel 16, receive only: hailing and distress, not for transmitting from land. */
+    val MARINE16 = Preset(
+        "marine-16", "Marine 16",
+        "156.800, hailing and distress. Receive only.",
+        listOf(Channel(rxFreqHz = 156_800_000, duplex = Duplex.OFF, name = "MAR16")),
+    )
+
+    /** MURS 1 to 5 at low power (the service allows 2 W): 1 to 3 narrow, 4 and 5 wide. */
+    val MURS = Preset(
+        "murs", "MURS 1 to 5",
+        "License free VHF. 154.570 is Blue Dot and 154.600 is Green Dot. Transmitting needs a certified radio.",
+        listOf(151.820, 151.880, 151.940, 154.570, 154.600).mapIndexed { i, f ->
+            simplex(f, "MURS${i + 1}", wide = i >= 3, power = Power.LOW)
+        },
+    )
+
     /** FRS/GMRS 1 to 22: 1 to 7 and 15 to 22 wide; 8 to 14 narrow and low power. */
     val FRS_GMRS = Preset(
         "frs-gmrs", "FRS/GMRS 1 to 22",
@@ -87,5 +103,5 @@ object SimplexPresets {
         },
     )
 
-    val ALL = listOf(CALLING, SIMPLEX_2M, SIMPLEX_70CM, NOAA, FRS_GMRS, GMRS_REPEATERS, CB)
+    val ALL = listOf(CALLING, SIMPLEX_2M, SIMPLEX_70CM, NOAA, MARINE16, MURS, FRS_GMRS, GMRS_REPEATERS, CB)
 }

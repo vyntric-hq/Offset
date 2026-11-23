@@ -16,7 +16,7 @@ import java.time.Clock
 
 /**
  * A database written by Offset 0.1 and 0.2 (schema 1, exported in app/schemas) opens after the
- * upgrade, with every stored image marked as a UV-5R family image.
+ * upgrade, with every stored image marked as a UV-5R family image and staging unnamed.
  */
 @RunWith(AndroidJUnit4::class)
 class DatabaseMigrationTest {
@@ -33,6 +33,7 @@ class DatabaseMigrationTest {
                     "VALUES (?, 'FACTORY', ?, 'UV-5R', ?, ?, '', 1, 1, ?)",
                 arrayOf<Any?>("Factory read", image.identity, image.firmwareVersion, image.usedChannelCount, image.bytes()),
             )
+            db.execSQL("INSERT INTO staging (id, json, updatedAt) VALUES (0, '[]', 1)")
             db.version = 1
         }
 
@@ -43,6 +44,11 @@ class DatabaseMigrationTest {
         val stored = repo.load(summary.id)!!
         assertEquals(image, stored.image)
         assertEquals(true, repo.hasFactoryImage(image.identity))
+        // Schema 4: staging kept its row and starts unnamed.
+        assertEquals("", com.vyntric.offset.data.StagingRepository(room.staging(), Clock.systemUTC()).name())
+        // Bulk delete runs as one transaction on the real database.
+        repo.deleteAll(listOf(summary.id))
+        assertEquals(0, repo.observeAll().first().size)
         room.close()
         ctx.deleteDatabase(name)
     }

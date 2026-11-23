@@ -42,6 +42,8 @@ data class RadioUiState(
     val radioType: RadioDriver = RadioDrivers.default,
     /** True once the current read has been saved to Images. */
     val readSaved: Boolean = false,
+    /** The staged set's name; empty when unnamed. */
+    val setName: String = "",
 ) {
     /** The radio staging is built for: the one read, else the selected type. */
     val driver: RadioDriver get() = snapshot?.image?.driver ?: radioType
@@ -50,6 +52,9 @@ data class RadioUiState(
     val busy: Boolean get() = operation is RadioOperations.State.Running
     val cableUsable: Boolean get() = cable is CableState.Ready || cable is CableState.Simulated
     val canWrite: Boolean get() = cableUsable && snapshot != null && staging.isNotEmpty() && problems.isEmpty() && !busy
+
+    /** A set is saved on top of the last read, so it needs one. */
+    val canSaveSet: Boolean get() = snapshot != null && staging.isNotEmpty() && problems.isEmpty() && staging.size <= target.capacity
 }
 
 class RadioViewModel(private val c: AppContainer) : ViewModel() {
@@ -60,13 +65,14 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
 
     val state: StateFlow<RadioUiState> = combine(
         combine(c.radioLink.cable, c.radioSession.last, c.settings.settings) { cable, snap, s -> Triple(cable, snap, s) },
-        c.staging.observe(), c.operations.state, combine(transient, savedRead, ::Pair),
-    ) { (cable, snap, settings), staging, op, (messages, saved) ->
+        c.staging.observe(), c.operations.state, combine(transient, savedRead, ::Pair), c.staging.observeName(),
+    ) { (cable, snap, settings), staging, op, (messages, saved), name ->
         val (message, error) = messages
         val base = RadioUiState(
             cable, snap, staging, emptyMap(), op, message, error,
             RadioDrivers.byId(settings.radioType) ?: RadioDrivers.default,
             readSaved = snap != null && snap === saved,
+            setName = name,
         )
         base.copy(problems = c.buildStaging.problems(staging, base.target, snap?.image))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RadioUiState())
@@ -136,7 +142,28 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
             }
     }
 
-    fun clearStaging() = viewModelScope.launch { c.staging.put(emptyList()) }
+    fun clearStaging() = viewModelScope.launch { c.staging.clear() }
+
+    fun setName(name: String) = viewModelScope.launch { c.staging.setName(name) }
+
+    /** Saves the staged set, laid over the last read, to Images under the set's name. */
+    fun saveSet() = viewModelScope.launch {
+        val s = state.value
+        val base = s.snapshot?.image ?: return@launch
+        if (!s.canSaveSet) return@launch
+        val image = try {
+            base.withChannels(s.staging.toSlots(s.target.capacity))
+        } catch (e: IllegalArgumentException) {
+            transient.value = null to "A channel could not be encoded: ${e.message}"
+            return@launch
+        }
+        runCatching { c.saveNamedImage(image, s.setName) }
+            .onSuccess { r ->
+                transient.value = (if (r.existing) "Already in Images as \"${r.name}\"." else "Saved to Images as \"${r.name}\".") to null
+                clearMessageLater()
+            }
+            .onFailure { transient.value = null to "Could not save the set." }
+    }
 
     /** Digital channels are not editable; say why instead of opening the editor. */
     fun explainDigital(channel: Channel) {
@@ -202,14 +229,12 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
 
     fun cancelPreset() { pendingPreset.value = null }
 
-    fun defaultImageName(): String = "Written"
-
     /** Rule 6 happened on the confirmation sheet; this records which radio it named. */
-    fun write(imageName: String) {
+    fun write() {
         val s = state.value
         val request = WriteRadio.Request(
             content = WriteRadio.Content.Channels(s.staging.toSlots(s.target.capacity)),
-            resultName = imageName,
+            resultName = s.setName,
             confirmedIdentity = s.snapshot?.image?.identity,
             driver = s.driver,
         )

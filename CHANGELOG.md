@@ -7,6 +7,22 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.5] - 2026-11-22
+
+### Added
+
+- Radio: name the staged set and save it to Images without writing. The set is laid over the
+  last read, so it exports and restores like any image.
+- Writes save the result under the set's name. A set already saved with the same channels is
+  not saved again; a different one under a used name becomes "Name (2)", "Name (3)" and so on.
+- Presets: MURS 1 to 5 (low power; 1 to 3 narrow, 4 and 5 wide) and Marine 16 (receive only).
+- Images: Select to check several images and delete them together.
+
+### Changed
+
+- The write confirmation shows the set's name instead of asking for one. The connection's
+  button now reads "Save read to Images", apart from the set's own Save.
+
 ## [0.7.4] - 2026-11-20
 
 ### Added

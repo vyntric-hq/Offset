@@ -9,6 +9,8 @@ import com.vyntric.offset.data.db.ImageEntity
 import com.vyntric.offset.data.db.ImageSummaryRow
 import com.vyntric.offset.domain.ImageKind
 import com.vyntric.offset.domain.ImageLibrary
+import com.vyntric.offset.domain.NameFamily
+import com.vyntric.offset.domain.SaveNamedImage
 import com.vyntric.offset.domain.StoredImage
 import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.RadioDrivers
@@ -40,6 +42,15 @@ class ImageRepository(private val dao: ImageDao, private val clock: Clock) : Ima
     fun observe(id: Long): Flow<StoredImage?> = dao.observe(id).map { it?.toStored() }
 
     override suspend fun load(id: Long): StoredImage? = dao.get(id)?.toStored()
+
+    override suspend fun userImagesNamed(base: String, recent: Int): NameFamily {
+        val names = dao.userNamesLike(base, "$base (").filterTo(HashSet()) { SaveNamedImage.inFamily(it, base) }
+        if (names.isEmpty()) return NameFamily.EMPTY
+        // Bound the IN list as well; the newest copies are the ones a repeated save would match.
+        val images = names.chunked(500).flatMap { dao.userImagesIn(it, recent) }
+            .sortedByDescending { it.updatedAt }.take(recent).map { it.toStored() }
+        return NameFamily(names, images)
+    }
 
     override suspend fun hasFactoryImage(identity: String): Boolean = dao.countFactory(identity) > 0
 
@@ -74,6 +85,9 @@ class ImageRepository(private val dao: ImageDao, private val clock: Clock) : Ima
     }
 
     suspend fun delete(id: Long) = dao.delete(id)
+
+    /** Deletes [ids] together: all of them or, on failure, none. */
+    suspend fun deleteAll(ids: Collection<Long>) = dao.deleteAll(ids.toList())
 
     private fun ImageSummaryRow.toSummary() = ImageSummary(
         id, name, kindOf(kind), RadioDrivers.byId(radio), identHex, model, firmware, channelCount, notes, createdAt, updatedAt,

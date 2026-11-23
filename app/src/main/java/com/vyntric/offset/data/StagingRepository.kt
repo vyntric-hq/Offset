@@ -15,6 +15,7 @@ import com.vyntric.offset.protocol.Power
 import com.vyntric.offset.protocol.PttId
 import com.vyntric.offset.protocol.Squelch
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -22,16 +23,33 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.time.Clock
 
-/** Persists the staging list so it survives process death. */
+/** Persists the staging list and the set's name so they survive process death. */
 class StagingRepository(private val dao: StagingDao, private val clock: Clock) {
     private val json = Json { ignoreUnknownKeys = true }
     private val mutex = Mutex()
 
     fun observe(): Flow<List<StagedChannel>> = dao.observe().map { decode(it?.json) }
 
+    /** The set's name; empty when unnamed. */
+    fun observeName(): Flow<String> = dao.observe().map { it?.name.orEmpty() }.distinctUntilChanged()
+
     suspend fun get(): List<StagedChannel> = decode(dao.get()?.json)
 
+    suspend fun name(): String = dao.get()?.name.orEmpty()
+
+    /** Replaces the list; the name is kept. */
     suspend fun put(list: List<StagedChannel>) = mutex.withLock { write(list) }
+
+    /** Replaces the list and the name together, as when an image is loaded into staging. */
+    suspend fun put(list: List<StagedChannel>, name: String) = mutex.withLock { write(list, name.trim()) }
+
+    suspend fun setName(name: String) = mutex.withLock {
+        val current = dao.get()
+        dao.put(StagingEntity(json = current?.json ?: "[]", updatedAt = clock.millis(), name = name.trim()))
+    }
+
+    /** Empties the list and forgets the name. */
+    suspend fun clear() = put(emptyList(), "")
 
     /**
      * Atomically replaces the list with [transform] of the current list. Concurrent edits (for
@@ -43,8 +61,13 @@ class StagingRepository(private val dao: StagingDao, private val clock: Clock) {
         result
     }
 
-    private suspend fun write(list: List<StagedChannel>) {
-        dao.put(StagingEntity(json = json.encodeToString(list.map { it.toDto() }), updatedAt = clock.millis()))
+    private suspend fun write(list: List<StagedChannel>, name: String? = null) {
+        dao.put(
+            StagingEntity(
+                json = json.encodeToString(list.map { it.toDto() }), updatedAt = clock.millis(),
+                name = name ?: dao.get()?.name.orEmpty(),
+            )
+        )
     }
 
     private fun decode(text: String?): List<StagedChannel> {

@@ -25,6 +25,24 @@ class StagingRepositoryTest {
         override suspend fun put(entity: StagingEntity) { row.value = entity }
     }
 
+    @Test fun `the set name survives list changes and clears with the list`() = runTest {
+        val repo = StagingRepository(MemoryDao(), Clock.systemUTC())
+        assertEquals("", repo.name())
+        repo.setName("  Bay Area ")
+        assertEquals("Bay Area", repo.name())
+        assertTrue(repo.get().isEmpty())
+        val ch = StagedChannel(1, Channel(146_520_000, name = "CALL"), ChannelOrigin.MANUAL, slot = 0)
+        repo.put(listOf(ch))
+        repo.update { it + it.single().copy(key = 2, slot = 1) to Unit }
+        assertEquals("Bay Area", repo.name())
+        assertEquals(2, repo.get().size)
+        repo.put(listOf(ch), "Trip")
+        assertEquals("Trip", repo.name())
+        repo.clear()
+        assertEquals("", repo.name())
+        assertTrue(repo.get().isEmpty())
+    }
+
     @Test fun `mode, new power levels and radio options survive a save`() = runTest {
         val dao = MemoryDao()
         val repo = StagingRepository(dao, Clock.systemUTC())

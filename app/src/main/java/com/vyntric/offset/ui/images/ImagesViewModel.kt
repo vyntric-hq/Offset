@@ -46,6 +46,12 @@ class ImagesViewModel(private val c: AppContainer) : ViewModel() {
 
     fun delete(id: Long) = viewModelScope.launch { c.images.delete(id); message.value = Toast("Image deleted.") }
 
+    fun deleteAll(ids: Set<Long>) = viewModelScope.launch {
+        runCatching { c.images.deleteAll(ids) }
+            .onSuccess { message.value = Toast(if (ids.size == 1) "Image deleted." else "${ids.size} images deleted.") }
+            .onFailure { message.value = Toast("Could not delete the images.", isError = true) }
+    }
+
     fun say(text: String, isError: Boolean = false) { message.value = Toast(text, isError) }
     fun dismissMessage() { message.value = null }
 }
@@ -121,7 +127,8 @@ class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : 
 
     fun loadIntoStaging() = viewModelScope.launch {
         val img = current() ?: return@launch
-        c.staging.put(c.buildStaging.fromImage(img, ChannelOrigin.IMAGE))
+        val name = c.images.load(id)?.name.orEmpty()
+        c.staging.put(c.buildStaging.fromImage(img, ChannelOrigin.IMAGE), name)
         message.value = Toast("Staging now holds this image's ${img.usedChannelCount} channels.")
     }
 

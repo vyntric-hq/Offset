@@ -42,6 +42,19 @@ class WriteRadioTest {
     private fun request(content: WriteRadio.Content = WriteRadio.Content.Channels(channels), ident: String? = factory.identHex) =
         WriteRadio.Request(content, "Trip", ident, Uv5rDriver)
 
+    @Test fun `writing the same set twice keeps one result under its name`() = runTest {
+        val first = write(request()) {} as WriteRadio.Outcome.Verified
+        val second = write(request()) {} as WriteRadio.Outcome.Verified
+        assertEquals(first.savedImageId, second.savedImageId)
+        assertEquals(listOf("Trip"), library.items.values.filter { it.kind == ImageKind.USER }.map { it.name })
+    }
+
+    @Test fun `a different set under a used name is saved as a numbered copy`() = runTest {
+        write(request()) {}
+        val other = write(request(WriteRadio.Content.Channels(channels.take(1)))) {} as WriteRadio.Outcome.Verified
+        assertEquals("Trip (2)", library.items[other.savedImageId]!!.name)
+    }
+
     @Test fun `writes, verifies, backs up first and saves the result`() = runTest {
         val outcome = write(request()) {}
         assertTrue(outcome.toString(), outcome is WriteRadio.Outcome.Verified)

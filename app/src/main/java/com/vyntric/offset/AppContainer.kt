@@ -98,7 +98,8 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
     fun stagingTarget(): com.vyntric.offset.domain.StagingTarget =
         radioSession.last.value?.image?.let { com.vyntric.offset.domain.StagingTarget.of(it) }
             ?: com.vyntric.offset.domain.StagingTarget.of(selectedDriver())
-    val writeRadio = WriteRadio(radioLink, images, radioSession, clock, sleeper)
+    val saveNamedImage = com.vyntric.offset.domain.SaveNamedImage(images)
+    val writeRadio = WriteRadio(radioLink, images, radioSession, clock, sleeper, saveNamedImage)
     val operations = com.vyntric.offset.domain.RadioOperations(appScope, readRadio, writeRadio)
     private val keys = AtomicLong(clock.millis())
     val buildStaging = BuildStaging { keys.incrementAndGet() }

@@ -4,7 +4,11 @@
  */
 package com.vyntric.offset.ui.images
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.selection.toggleable
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,19 +20,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,6 +71,17 @@ fun ImagesScreen(container: AppContainer, onOpen: (Long) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var deleting by remember { mutableStateOf<ImageSummary?>(null) }
+    // Select mode: tap rows to check them, then delete them together.
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    var selected by remember { mutableStateOf(emptySet<Long>()) }
+    var deletingSelected by remember { mutableStateOf(false) }
+    val all = s.library + s.backups
+    // Images deleted elsewhere drop out of the selection.
+    val live = selected.filterTo(HashSet()) { id -> all.any { it.id == id } }
+    if (live.size != selected.size) selected = live
+    if (selecting && all.isEmpty()) { selecting = false; selected = emptySet() }
+    fun endSelecting() { selecting = false; selected = emptySet() }
+    fun toggle(id: Long) { selected = if (id in selected) selected - id else selected + id }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) scope.launch {
@@ -82,7 +101,31 @@ fun ImagesScreen(container: AppContainer, onOpen: (Long) -> Unit) {
         if (s.message != null) { kotlinx.coroutines.delay(4_000); vm.dismissMessage() }
     }
 
-    LargeTitleScreen(title = "Images", toast = s.message, actions = { BarAction("Import") { picker.launch(arrayOf("application/octet-stream", "*/*")) } }) {
+    BackHandler(enabled = selecting) { endSelecting() }
+
+    LargeTitleScreen(
+        title = "Images",
+        toast = s.message,
+        actions = {
+            if (selecting) {
+                BarAction("Done") { endSelecting() }
+            } else {
+                if (all.isNotEmpty()) BarAction("Select") { selecting = true }
+                BarAction("Import") { picker.launch(arrayOf("application/octet-stream", "*/*")) }
+            }
+        },
+        bottomBarHeight = if (selecting) 82.dp else 0.dp,
+        bottomBar = if (!selecting) null else {
+            {
+                Box(Modifier.fillMaxWidth().background(OffsetTheme.colors.chrome).padding(horizontal = Dimens.gutter, vertical = 16.dp)) {
+                    PrimaryButton(
+                        if (selected.isEmpty()) "Delete" else "Delete ${selected.size}",
+                        destructive = true, enabled = selected.isNotEmpty(), onClick = { deletingSelected = true },
+                    )
+                }
+            }
+        },
+    ) {
         if (s.loaded && s.library.isEmpty() && s.backups.isEmpty()) {
             item(key = "empty") {
                 GroupedCell(CellPosition.ONLY) {
@@ -99,16 +142,32 @@ fun ImagesScreen(container: AppContainer, onOpen: (Long) -> Unit) {
         if (s.library.isNotEmpty()) {
             item(key = "lib-header") { SectionHeader("Library") }
             groupedItems(s.library, key = { it.id }) { img ->
-                SwipeActionRow("Delete", onAction = { deleting = img }) { ImageRow(img) { onOpen(img.id) } }
+                if (selecting) ImageRow(img, selected = img.id in selected) { toggle(img.id) }
+                else SwipeActionRow("Delete", onAction = { deleting = img }) { ImageRow(img) { onOpen(img.id) } }
             }
             item(key = "lib-footer") { SectionFooter("Keep one image per trip or state, edit it, and restore it before you go.") }
         }
         if (s.backups.isNotEmpty()) {
             item(key = "bk-header") { SectionHeader("Backups") }
             groupedItems(s.backups, key = { it.id }) { img ->
-                SwipeActionRow("Delete", onAction = { deleting = img }) { ImageRow(img) { onOpen(img.id) } }
+                if (selecting) ImageRow(img, selected = img.id in selected) { toggle(img.id) }
+                else SwipeActionRow("Delete", onAction = { deleting = img }) { ImageRow(img) { onOpen(img.id) } }
             }
             item(key = "bk-footer") { SectionFooter("Saved automatically before every write. Restore one if a write goes wrong.") }
+        }
+    }
+
+    if (deletingSelected) {
+        val n = selected.size
+        OffsetSheet(onDismiss = { deletingSelected = false }, title = "Delete images", leadingAction = { BarAction("Cancel") { deletingSelected = false } }) {
+            SectionFooter(if (n == 1) "1 image will be removed from this phone. This cannot be undone." else "$n images will be removed from this phone. This cannot be undone.")
+            Column(Modifier.padding(Dimens.gutter)) {
+                PrimaryButton(if (n == 1) "Delete 1 image" else "Delete $n images", destructive = true, onClick = {
+                    vm.deleteAll(selected)
+                    deletingSelected = false
+                    endSelecting()
+                })
+            }
         }
     }
 
@@ -123,12 +182,23 @@ fun ImagesScreen(container: AppContainer, onOpen: (Long) -> Unit) {
 }
 
 @Composable
-internal fun ImageRow(img: ImageSummary, onClick: () -> Unit) {
+internal fun ImageRow(img: ImageSummary, selected: Boolean? = null, onClick: () -> Unit) {
     val colors = OffsetTheme.colors
+    val base = Modifier.fillMaxWidth().heightIn(min = 60.dp)
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 60.dp).tappable("Open ${img.name}", onClick).padding(start = Dimens.gutter, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        (if (selected == null) base.tappable("Open ${img.name}", onClick)
+        else base.toggleable(value = selected, role = Role.Checkbox, onValueChange = { onClick() }))
+            .padding(start = Dimens.gutter, end = 8.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (selected != null) {
+            Icon(
+                if (selected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                contentDescription = null,
+                tint = if (selected) colors.accent else colors.tertiaryLabel,
+                modifier = Modifier.padding(end = 12.dp).size(24.dp),
+            )
+        }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(img.name, style = OffsetTheme.type.body, color = colors.label, modifier = Modifier.weight(1f, fill = false), maxLines = 2)
@@ -143,7 +213,9 @@ internal fun ImageRow(img: ImageSummary, onClick: () -> Unit) {
                 Text(img.notes, style = OffsetTheme.type.footnote, color = colors.tertiaryLabel, maxLines = 1)
             }
         }
-        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = colors.tertiaryLabel, modifier = Modifier.size(22.dp))
+        if (selected == null) {
+            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = colors.tertiaryLabel, modifier = Modifier.size(22.dp))
+        }
     }
 }
 

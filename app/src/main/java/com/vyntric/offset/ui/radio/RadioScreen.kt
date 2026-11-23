@@ -51,6 +51,7 @@ import com.vyntric.offset.AppContainer
 import com.vyntric.offset.domain.CableState
 import com.vyntric.offset.domain.RadioOperations
 import com.vyntric.offset.domain.Gmrs
+import com.vyntric.offset.domain.SaveNamedImage
 import com.vyntric.offset.domain.SimplexPresets
 import com.vyntric.offset.domain.StagedChannel
 import com.vyntric.offset.ui.GmrsWarningSheet
@@ -99,6 +100,7 @@ fun RadioScreen(container: AppContainer) {
     var adding by remember { mutableStateOf(false) }
     var confirming by remember { mutableStateOf(false) }
     var presets by remember { mutableStateOf(false) }
+    var naming by remember { mutableStateOf(false) }
     // Drag handles only while reordering, so scrolling never moves a channel by accident.
     var reordering by rememberSaveable { mutableStateOf(false) }
     val canReorder = !fixedSlots && state.staging.size > 1
@@ -137,6 +139,17 @@ fun RadioScreen(container: AppContainer) {
             AnimatedVisibility(state.message != null || state.error != null, enter = fadeIn(), exit = fadeOut()) {
                 Banner(text = state.error ?: state.message.orEmpty(), isError = state.error != null) {
                     if (state.error != null) vm.dismissError() else vm.dismissMessage()
+                }
+            }
+        }
+
+        if (state.staging.isNotEmpty()) {
+            item(key = "set") {
+                InsetSection(header = "Set", footer = if (state.snapshot == null) "Read the radio first to save this set." else null) {
+                    cell {
+                        CellRow("Name", value = state.setName.ifBlank { SaveNamedImage.UNTITLED }, chevron = true, onClickLabel = "Rename the set") { naming = true }
+                    }
+                    cell { ButtonRow("Save to Images", enabled = state.canSaveSet, onClick = { vm.saveSet() }) }
                 }
             }
         }
@@ -245,10 +258,13 @@ fun RadioScreen(container: AppContainer) {
         )
     }
     if (confirming) {
-        WriteConfirmSheet(state, vm.defaultImageName(), onCancel = { confirming = false }) { name ->
+        WriteConfirmSheet(state, onCancel = { confirming = false }) {
             confirming = false
-            vm.write(name)
+            vm.write()
         }
+    }
+    if (naming) {
+        SetNameSheet(state.setName, onDismiss = { naming = false }) { vm.setName(it); naming = false }
     }
 }
 
@@ -307,7 +323,7 @@ private fun ConnectionSection(state: RadioUiState, onPermission: () -> Unit, onR
         } else {
             cell { ButtonRow(if (image == null) "Read radio" else "Read again", enabled = state.cableUsable && !state.busy, onClick = onRead) }
             if (image != null) {
-                cell { ButtonRow(if (state.readSaved) "Saved to Images" else "Save to Images", enabled = !state.readSaved, onClick = onSave) }
+                cell { ButtonRow(if (state.readSaved) "Read saved to Images" else "Save read to Images", enabled = !state.readSaved, onClick = onSave) }
             }
         }
     }
@@ -391,8 +407,24 @@ private fun StagedRow(
 }
 
 @Composable
-private fun WriteConfirmSheet(state: RadioUiState, defaultName: String, onCancel: () -> Unit, onConfirm: (String) -> Unit) {
-    var name by rememberSaveable { mutableStateOf(defaultName) }
+private fun SetNameSheet(current: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var name by rememberSaveable { mutableStateOf(current) }
+    OffsetSheet(
+        onDismiss = onDismiss, title = "Set name",
+        leadingAction = { BarAction("Cancel", onClick = onDismiss) },
+        trailingAction = { BarAction("Done") { onSave(name) } },
+    ) {
+        InsetSection {
+            cell {
+                TextFieldRow("Name", name, { name = it }, placeholder = SaveNamedImage.UNTITLED,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
+            }
+        }
+    }
+}
+
+@Composable
+private fun WriteConfirmSheet(state: RadioUiState, onCancel: () -> Unit, onConfirm: () -> Unit) {
     val image = state.snapshot?.image
     OffsetSheet(onDismiss = onCancel, title = "Write to radio", leadingAction = { BarAction("Cancel", onClick = onCancel) }) {
         InsetSection(header = "Radio") {
@@ -414,11 +446,8 @@ private fun WriteConfirmSheet(state: RadioUiState, defaultName: String, onCancel
                 }
             }
         }
-        InsetSection(header = "Image", footer = "The written radio is saved to Images under this name.") {
-            cell {
-                TextFieldRow("Name", name, { name = it }, placeholder = "Image name",
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
-            }
+        InsetSection(header = "Image", footer = "Saved to Images under this name.") {
+            cell { DetailRow("Name", state.setName.ifBlank { SaveNamedImage.UNTITLED }) }
             cell { DetailRow("Channels", "${state.staging.size} of ${state.target.capacity}") }
             val gmrs = state.staging.count { Gmrs.isGmrs(it.channel.rxFreqHz) }
             if (gmrs > 0) cell { DetailRow("GMRS or FRS channels", "$gmrs, transmit enabled") }
@@ -428,7 +457,7 @@ private fun WriteConfirmSheet(state: RadioUiState, defaultName: String, onCancel
                 "then reads back to verify. Settings and calibration are never written. Keep this radio connected and the cable still until it finishes.",
         )
         Column(Modifier.padding(Dimens.gutter)) {
-            PrimaryButton("Write ${state.staging.size} channels", onClick = { onConfirm(name) }, enabled = name.isNotBlank())
+            PrimaryButton("Write ${state.staging.size} channels", onClick = onConfirm)
         }
     }
 }
@@ -478,13 +507,13 @@ private fun PresetsSheet(available: List<SimplexPresets.Preset>, onDismiss: () -
             InsetSection {
                 available.forEach { p ->
                     cell {
-                        CellRow(p.title, subtitle = "${p.channels.size} channels", chevron = true, onClickLabel = "Show ${p.title}") { openId = p.id }
+                        CellRow(p.title, subtitle = channelCount(p.channels.size), chevron = true, onClickLabel = "Show ${p.title}") { openId = p.id }
                     }
                 }
             }
         } else {
             SectionFooter(open.description)
-            InsetSection(header = "${open.channels.size} channels", footer = "Added to the end of staging. Channels already staged are skipped.") {
+            InsetSection(header = channelCount(open.channels.size), footer = "Added to the end of staging. Channels already staged are skipped.") {
                 open.channels.forEach { ch ->
                     cell {
                         CellRow(
@@ -495,7 +524,7 @@ private fun PresetsSheet(available: List<SimplexPresets.Preset>, onDismiss: () -
                 }
             }
             Column(Modifier.padding(Dimens.gutter)) {
-                PrimaryButton("Add ${open.channels.size} channels", onClick = { onPick(open) })
+                PrimaryButton("Add ${channelCount(open.channels.size)}", onClick = { onPick(open) })
             }
         }
     }
@@ -520,3 +549,5 @@ private fun Banner(text: String, isError: Boolean, onDismiss: () -> Unit) {
         Text("Dismiss", style = OffsetTheme.type.footnote, color = colors.accent)
     }
 }
+
+private fun channelCount(n: Int) = if (n == 1) "1 channel" else "$n channels"

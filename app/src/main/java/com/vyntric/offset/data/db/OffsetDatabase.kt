@@ -13,6 +13,7 @@ import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.RoomDatabase
+import androidx.room.Transaction
 import androidx.room.Upsert
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -57,12 +58,13 @@ data class ImageSummaryRow(
     val updatedAt: Long,
 )
 
-/** The staging list is one ordered document, written atomically. */
+/** The staging list is one ordered document, written atomically, with the set's name. */
 @Entity(tableName = "staging")
 data class StagingEntity(
     @PrimaryKey val id: Int = 0,
     val json: String,
     val updatedAt: Long,
+    @ColumnInfo(defaultValue = "") val name: String = "",
 )
 
 /**
@@ -110,6 +112,14 @@ interface ImageDao {
     @Query("SELECT * FROM images WHERE id = :id")
     fun observe(id: Long): Flow<ImageEntity?>
 
+    /** Names of user images named [name] or starting with [prefix] (the caller keeps exact numbered copies). */
+    @Query("SELECT name FROM images WHERE kind = 'USER' AND (name = :name OR substr(name, 1, length(:prefix)) = :prefix) LIMIT 20000")
+    suspend fun userNamesLike(name: String, prefix: String): List<String>
+
+    /** The most recent user images among [names], with their bytes, for comparing channels. */
+    @Query("SELECT * FROM images WHERE kind = 'USER' AND name IN (:names) ORDER BY updatedAt DESC LIMIT :limit")
+    suspend fun userImagesIn(names: List<String>, limit: Int): List<ImageEntity>
+
     @Query("SELECT COUNT(*) FROM images WHERE identHex = :identHex AND kind = 'FACTORY'")
     suspend fun countFactory(identHex: String): Int
 
@@ -127,6 +137,13 @@ interface ImageDao {
 
     @Query("DELETE FROM images WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("DELETE FROM images WHERE id IN (:ids)")
+    suspend fun deleteChunk(ids: List<Long>)
+
+    /** Deletes [ids] in one transaction, in chunks under SQLite's bound-parameter limit. */
+    @Transaction
+    suspend fun deleteAll(ids: List<Long>) = ids.chunked(500).forEach { deleteChunk(it) }
 }
 
 @Dao
@@ -141,7 +158,7 @@ interface StagingDao {
     suspend fun put(entity: StagingEntity)
 }
 
-@Database(entities = [ImageEntity::class, StagingEntity::class, ReachItemEntity::class], version = 3, exportSchema = true)
+@Database(entities = [ImageEntity::class, StagingEntity::class, ReachItemEntity::class], version = 4, exportSchema = true)
 abstract class OffsetDatabase : RoomDatabase() {
     abstract fun images(): ImageDao
     abstract fun staging(): StagingDao
@@ -166,6 +183,13 @@ abstract class OffsetDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        /** 0.7.5 names the staged set. Existing staging keeps its channels and starts unnamed. */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE staging ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }
