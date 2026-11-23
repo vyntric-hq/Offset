@@ -9,6 +9,7 @@ import com.vyntric.offset.protocol.Duplex
 import com.vyntric.offset.protocol.Modulation
 import com.vyntric.offset.protocol.Power
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -36,11 +37,29 @@ class StagingRepositoryTest {
         repo.update { it + it.single().copy(key = 2, slot = 1) to Unit }
         assertEquals("Bay Area", repo.name())
         assertEquals(2, repo.get().size)
-        repo.put(listOf(ch), "Trip")
+        repo.put(listOf(ch), "Trip", baseImageId = null)
         assertEquals("Trip", repo.name())
         repo.clear()
         assertEquals("", repo.name())
         assertTrue(repo.get().isEmpty())
+    }
+
+    @Test fun `the loaded image stays the base through edits, renames and clear`() = runTest {
+        val dao = MemoryDao()
+        val repo = StagingRepository(dao, Clock.systemUTC())
+        val ch = StagedChannel(1, Channel(146_520_000, name = "CALL"), ChannelOrigin.IMAGE, slot = 0)
+        repo.put(listOf(ch), "Trip", baseImageId = 7)
+        assertEquals(7L, repo.observeBaseImageId().first())
+        repo.update { emptyList<StagedChannel>() to Unit }
+        repo.setName("Camp")
+        repo.clear()
+        repo.put(listOf(ch))
+        assertEquals(7L, repo.observeBaseImageId().first())
+        // Refilling staging from a radio read forgets the base, and only then.
+        assertEquals(false, repo.update(forgetBaseIf = { it }) { it to false })
+        assertEquals(7L, repo.observeBaseImageId().first())
+        repo.update(forgetBaseIf = { it }) { listOf(ch) to true }
+        assertEquals(null, repo.observeBaseImageId().first())
     }
 
     @Test fun `mode, new power levels and radio options survive a save`() = runTest {

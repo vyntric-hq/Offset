@@ -22,7 +22,12 @@ import com.vyntric.offset.protocol.ChannelValidator
 import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.RadioDrivers
 import com.vyntric.offset.protocol.RadioProfile
+import com.vyntric.offset.domain.StoredImage
+import com.vyntric.offset.protocol.RadioImage
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -44,20 +49,34 @@ data class RadioUiState(
     val readSaved: Boolean = false,
     /** The staged set's name; empty when unnamed. */
     val setName: String = "",
+    /** The library image staging was loaded from, if it is still in Images. */
+    val baseImage: StoredImage? = null,
 ) {
+    /**
+     * The image a set is saved over: the last read, else the image staging was loaded from when
+     * it is for the selected radio type (loading an image selects its type).
+     */
+    val setBase: RadioImage? get() = snapshot?.image ?: baseImage?.image?.takeIf { it.driver == radioType }
+
     /** The radio staging is built for: the one read, else the selected type. */
     val driver: RadioDriver get() = snapshot?.image?.driver ?: radioType
-    val target: StagingTarget get() = snapshot?.image?.let { StagingTarget.of(it) } ?: StagingTarget.of(radioType)
+
+    /** What staging is checked against: the exact model of the read or loaded image, else the selected type. */
+    val target: StagingTarget get() = setBase?.let { StagingTarget.of(it) } ?: StagingTarget.of(radioType)
     val model: RadioProfile get() = target.profile
     val busy: Boolean get() = operation is RadioOperations.State.Running
     val cableUsable: Boolean get() = cable is CableState.Ready || cable is CableState.Simulated
     val canWrite: Boolean get() = cableUsable && snapshot != null && staging.isNotEmpty() && problems.isEmpty() && !busy
 
-    /** A set is saved on top of the last read, so it needs one. */
-    val canSaveSet: Boolean get() = snapshot != null && staging.isNotEmpty() && problems.isEmpty() && staging.size <= target.capacity
+    /** A set is saved over a read or a loaded image, so it needs one of them. */
+    val canSaveSet: Boolean get() = setBase != null && staging.isNotEmpty() && problems.isEmpty() && staging.size <= target.capacity
 }
 
 class RadioViewModel(private val c: AppContainer) : ViewModel() {
+    /** The image staging was loaded from; null when there is none or it was deleted. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val baseImage = c.staging.observeBaseImageId().flatMapLatest { id -> id?.let { c.images.observe(it) } ?: flowOf(null) }
+
     private val transient = MutableStateFlow(Pair<String?, String?>(null, null))
 
     /** The read last saved to Images, so the same read is not saved twice. */
@@ -65,23 +84,26 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
 
     val state: StateFlow<RadioUiState> = combine(
         combine(c.radioLink.cable, c.radioSession.last, c.settings.settings) { cable, snap, s -> Triple(cable, snap, s) },
-        c.staging.observe(), c.operations.state, combine(transient, savedRead, ::Pair), c.staging.observeName(),
-    ) { (cable, snap, settings), staging, op, (messages, saved), name ->
+        c.staging.observe(), c.operations.state, combine(transient, savedRead, ::Pair),
+        combine(c.staging.observeName(), baseImage, ::Pair),
+    ) { (cable, snap, settings), staging, op, (messages, saved), (name, baseImage) ->
         val (message, error) = messages
         val base = RadioUiState(
             cable, snap, staging, emptyMap(), op, message, error,
             RadioDrivers.byId(settings.radioType) ?: RadioDrivers.default,
             readSaved = snap != null && snap === saved,
             setName = name,
+            baseImage = baseImage,
         )
-        base.copy(problems = c.buildStaging.problems(staging, base.target, snap?.image))
+        base.copy(problems = c.buildStaging.problems(staging, base.target, base.setBase))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RadioUiState())
 
     /** Selects the radio type to read. A radio read as another type is forgotten. */
+    /** Picking another type by hand also drops the loaded image, so it cannot come back later as the base. */
     fun selectRadioType(driver: RadioDriver) {
-        if (c.settings.settings.value.radioType == driver.id) return
-        c.settings.update { it.copy(radioType = driver.id) }
-        if (c.radioSession.last.value?.image?.driver != driver) c.radioSession.clear()
+        if (driver == state.value.radioType) return
+        c.selectRadioType(driver)
+        viewModelScope.launch { c.staging.update(forgetBaseIf = { true }) { it to Unit } }
     }
 
     init {
@@ -91,7 +113,8 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
                 when (r) {
                     is RadioOperations.Result.ReadDone -> {
                         c.operations.consume(r)
-                        val wasEmpty = c.staging.update { staged ->
+                        // Channels taken from the radio have no image in Images behind them.
+                        val wasEmpty = c.staging.update(forgetBaseIf = { it }) { staged ->
                             if (staged.isEmpty()) c.buildStaging.fromImage(r.read.image) to true
                             else c.buildStaging.adoptRadioModes(staged, r.read.image) to false
                         }
@@ -119,7 +142,7 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
 
     fun loadFromRadio() = viewModelScope.launch {
         val image = c.radioSession.last.value?.image ?: return@launch
-        c.staging.put(c.buildStaging.fromImage(image))
+        c.staging.update(forgetBaseIf = { true }) { c.buildStaging.fromImage(image) to Unit }
         transient.value = "Staging replaced with the radio's ${image.usedChannelCount} channels." to null
         clearMessageLater()
     }
@@ -146,10 +169,10 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
 
     fun setName(name: String) = viewModelScope.launch { c.staging.setName(name) }
 
-    /** Saves the staged set, laid over the last read, to Images under the set's name. */
+    /** Saves the staged set, laid over the last read or the loaded image, to Images under the set's name. */
     fun saveSet() = viewModelScope.launch {
         val s = state.value
-        val base = s.snapshot?.image ?: return@launch
+        val base = s.setBase ?: return@launch
         if (!s.canSaveSet) return@launch
         val image = try {
             base.withChannels(s.staging.toSlots(s.target.capacity))

@@ -33,39 +33,57 @@ class StagingRepository(private val dao: StagingDao, private val clock: Clock) {
     /** The set's name; empty when unnamed. */
     fun observeName(): Flow<String> = dao.observe().map { it?.name.orEmpty() }.distinctUntilChanged()
 
+    /** The library image staging was loaded from, or null. */
+    fun observeBaseImageId(): Flow<Long?> = dao.observe().map { it?.baseImageId }.distinctUntilChanged()
+
     suspend fun get(): List<StagedChannel> = decode(dao.get()?.json)
 
     suspend fun name(): String = dao.get()?.name.orEmpty()
 
-    /** Replaces the list; the name is kept. */
+    /** Replaces the list; the name and the base image are kept. */
     suspend fun put(list: List<StagedChannel>) = mutex.withLock { write(list) }
 
-    /** Replaces the list and the name together, as when an image is loaded into staging. */
-    suspend fun put(list: List<StagedChannel>, name: String) = mutex.withLock { write(list, name.trim()) }
+    /**
+     * Replaces the list, the name and the base image together: an image loaded into staging
+     * passes its id, and channels taken from a radio read pass null.
+     */
+    suspend fun put(list: List<StagedChannel>, name: String, baseImageId: Long?) = mutex.withLock {
+        write(list, name.trim(), Base(baseImageId))
+    }
 
     suspend fun setName(name: String) = mutex.withLock {
         val current = dao.get()
-        dao.put(StagingEntity(json = current?.json ?: "[]", updatedAt = clock.millis(), name = name.trim()))
+        dao.put(StagingEntity(json = current?.json ?: "[]", updatedAt = clock.millis(), name = name.trim(), baseImageId = current?.baseImageId))
     }
 
-    /** Empties the list and forgets the name. */
-    suspend fun clear() = put(emptyList(), "")
+    /** Empties the list and forgets the name. The base image stays, so a new set can be built over it. */
+    suspend fun clear() = mutex.withLock { write(emptyList(), "") }
 
     /**
      * Atomically replaces the list with [transform] of the current list. Concurrent edits (for
-     * example a burst of drag moves) are applied one after another, never lost.
+     * example a burst of drag moves) are applied one after another, never lost. When
+     * [forgetBaseIf] holds for the result, the base image is dropped in the same write, as when
+     * staging is refilled from a radio read.
      */
-    suspend fun <R> update(transform: (List<StagedChannel>) -> Pair<List<StagedChannel>, R>): R = mutex.withLock {
+    suspend fun <R> update(
+        forgetBaseIf: (R) -> Boolean = { false },
+        transform: (List<StagedChannel>) -> Pair<List<StagedChannel>, R>,
+    ): R = mutex.withLock {
         val (next, result) = transform(get())
-        write(next)
+        write(next, base = if (forgetBaseIf(result)) Base(null) else null)
         result
     }
 
-    private suspend fun write(list: List<StagedChannel>, name: String? = null) {
+    /** A new base image id; null keeps the current one. */
+    private class Base(val id: Long?)
+
+    private suspend fun write(list: List<StagedChannel>, name: String? = null, base: Base? = null) {
+        val current = dao.get()
         dao.put(
             StagingEntity(
                 json = json.encodeToString(list.map { it.toDto() }), updatedAt = clock.millis(),
-                name = name ?: dao.get()?.name.orEmpty(),
+                name = name ?: current?.name.orEmpty(),
+                baseImageId = if (base != null) base.id else current?.baseImageId,
             )
         )
     }

@@ -65,6 +65,8 @@ data class StagingEntity(
     val json: String,
     val updatedAt: Long,
     @ColumnInfo(defaultValue = "") val name: String = "",
+    /** The library image staging was loaded from, which a set is saved over when no radio was read. */
+    val baseImageId: Long? = null,
 )
 
 /**
@@ -158,7 +160,7 @@ interface StagingDao {
     suspend fun put(entity: StagingEntity)
 }
 
-@Database(entities = [ImageEntity::class, StagingEntity::class, ReachItemEntity::class], version = 4, exportSchema = true)
+@Database(entities = [ImageEntity::class, StagingEntity::class, ReachItemEntity::class], version = 5, exportSchema = true)
 abstract class OffsetDatabase : RoomDatabase() {
     abstract fun images(): ImageDao
     abstract fun staging(): StagingDao
@@ -190,6 +192,13 @@ abstract class OffsetDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+        /** 0.7.6 remembers the image staging was loaded from. Existing staging has none. */
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE staging ADD COLUMN baseImageId INTEGER")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
     }
 }

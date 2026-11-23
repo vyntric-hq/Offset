@@ -7,6 +7,14 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.6] - 2026-11-22
+
+### Changed
+
+- Radio: a set loaded from Images can be named and saved to Images with no radio connected.
+  The set is laid over the image it was loaded from, shown as "Based on". Clear keeps that
+  image, so a new set can be built over it from scratch.
+
 ## [0.7.5] - 2026-11-22
 
 ### Added

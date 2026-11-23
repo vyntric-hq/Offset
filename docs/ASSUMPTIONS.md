@@ -427,3 +427,10 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     anywhere in the numbered family is reused.
 123. **Marine 16 is receive only and MURS is at low power (0.7.5):** transmitting on marine
     channels from land is not permitted for ordinary users, and MURS allows 2 W.
+124. **A set is saved over the read, else the loaded image (0.7.6):** staging remembers the id of
+    the image last loaded from Images. A read in this session wins, since a write goes to that
+    radio. Clear keeps the image so a set can be rebuilt over it; refilling staging from a read
+    drops it. Loading an image selects its radio type, so every tab builds for the same radio
+    (a read of another type is forgotten, as when the type is picked by hand), and the image is
+    used only while that type stays selected. If the image is
+    deleted, saving needs a read again.

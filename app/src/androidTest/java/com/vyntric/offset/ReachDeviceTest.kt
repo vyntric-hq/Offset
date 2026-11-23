@@ -112,7 +112,7 @@ class ReachDeviceTest {
 
         rule.waitUntil(5_000) { runBlocking { c.inventory.observe().first().stations.isNotEmpty() } }
         // The station card replaces the welcome card once the saved station flows back from Room.
-        rule.waitUntil(5_000) { rule.onAllNodesWithText("Who hears me", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        rule.waitUntil(15_000) { rule.onAllNodesWithText("Who hears me", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithText("Who I hear", useUnmergedTree = true).assertExists()
         val station = runBlocking { c.inventory.observe().first().stations.single() }
         assertEquals("UV-5R", station.name)

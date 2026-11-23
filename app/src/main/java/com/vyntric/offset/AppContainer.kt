@@ -92,6 +92,12 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
     /** The radio type selected for reading; writes use the type of the radio that was read. */
     fun selectedDriver(): RadioDriver = RadioDrivers.byId(settings.settings.value.radioType) ?: RadioDrivers.default
 
+    /** Selects the radio type to read and build staging for. A radio read as another type is forgotten. */
+    fun selectRadioType(driver: RadioDriver) {
+        if (settings.settings.value.radioType != driver.id) settings.update { it.copy(radioType = driver.id) }
+        if (radioSession.last.value?.image?.driver.let { it != null && it != driver }) radioSession.clear()
+    }
+
     val readRadio = ReadRadio(radioLink, images, radioSession, clock, sleeper, ::selectedDriver)
 
     /** The radio staging is built for: the one last read, else the selected type. */

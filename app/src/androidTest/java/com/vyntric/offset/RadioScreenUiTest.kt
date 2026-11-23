@@ -55,4 +55,32 @@ class RadioScreenUiTest {
         rule.onNodeWithText("Save to Images").performClick()
         rule.waitUntil(5_000) { rule.onAllNodesWithText("Already in Images as \"Field Day\".").fetchSemanticsNodes().isNotEmpty() }
     }
+
+    /** A set built over an image from Images saves with no radio read. */
+    @Test fun setFromALoadedImageSavesWithoutARead() {
+        val c = (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as OffsetApp).container
+        runBlocking {
+            val image = InstrumentationRegistry.getInstrumentation().targetContext.assets.open("simulated/uv5r-factory.img")
+                .use { com.vyntric.offset.protocol.ChirpImg.decode(it.readBytes()).image }
+            // Another radio type is selected; loading the image selects the image's type.
+            c.settings.update { it.copy(radioType = com.vyntric.offset.protocol.RadioDrivers.all.first { d -> d != image.driver }.id) }
+            val id = c.images.save(image, "Base for UI test", com.vyntric.offset.domain.ImageKind.USER)
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                com.vyntric.offset.ui.images.ImageDetailViewModel(c, id).loadIntoStaging()
+            }
+        }
+        rule.waitUntil(10_000) { c.settings.settings.value.radioType == com.vyntric.offset.protocol.Uv5rDriver.id }
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("Base for UI test").fetchSemanticsNodes().size >= 2 }
+        // The set takes the image's name; rename it.
+        rule.onAllNodesWithText("Base for UI test")[0].performClick()
+        rule.onAllNodes(hasSetTextAction())[0].performTextReplacement("Hike")
+        rule.onNodeWithText("Done").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("Hike").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Based on").assertExists()
+        rule.onNodeWithText("Save to Images").performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithText("Saved to Images as \"Hike\".").fetchSemanticsNodes().isNotEmpty() ||
+                rule.onAllNodesWithText("Already in Images as \"Hike\".").fetchSemanticsNodes().isNotEmpty()
+        }
+    }
 }

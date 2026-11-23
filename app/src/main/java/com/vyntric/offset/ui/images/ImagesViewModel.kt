@@ -126,9 +126,11 @@ class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : 
     }
 
     fun loadIntoStaging() = viewModelScope.launch {
-        val img = current() ?: return@launch
-        val name = c.images.load(id)?.name.orEmpty()
-        c.staging.put(c.buildStaging.fromImage(img, ChannelOrigin.IMAGE), name)
+        val stored = c.images.load(id) ?: return@launch
+        val img = stored.image
+        // Staging is now for this image's radio, on every tab; a read of another type no longer applies.
+        c.selectRadioType(img.driver)
+        c.staging.put(c.buildStaging.fromImage(img, ChannelOrigin.IMAGE), stored.name, baseImageId = id)
         message.value = Toast("Staging now holds this image's ${img.usedChannelCount} channels.")
     }
 

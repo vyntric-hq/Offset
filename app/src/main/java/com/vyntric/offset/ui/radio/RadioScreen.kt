@@ -145,10 +145,11 @@ fun RadioScreen(container: AppContainer) {
 
         if (state.staging.isNotEmpty()) {
             item(key = "set") {
-                InsetSection(header = "Set", footer = if (state.snapshot == null) "Read the radio first to save this set." else null) {
+                InsetSection(header = "Set", footer = if (state.setBase == null) "Read the radio or load an image from Images to save this set." else null) {
                     cell {
                         CellRow("Name", value = state.setName.ifBlank { SaveNamedImage.UNTITLED }, chevron = true, onClickLabel = "Rename the set") { naming = true }
                     }
+                    if (state.snapshot == null && state.setBase != null) state.baseImage?.let { cell { DetailRow("Based on", it.name) } }
                     cell { ButtonRow("Save to Images", enabled = state.canSaveSet, onClick = { vm.saveSet() }) }
                 }
             }
