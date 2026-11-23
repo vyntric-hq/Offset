@@ -26,8 +26,8 @@ object Rt950ProDriver : RadioDriver {
     override val chirpModels: Set<String> = setOf(Rt950ProImage.MODEL_NAME)
     override val cableAdvice = ""
 
-    /** Only the 33,152 byte image; no other family uses that size. */
-    override fun recognizes(bytes: ByteArray) = bytes.size == Rt950ProImage.SIZE
+    /** Only the 33,408 byte image, or 33,152 bytes as saved before 0.7.7; no other family uses those sizes. */
+    override fun recognizes(bytes: ByteArray) = bytes.size == Rt950ProImage.SIZE || bytes.size == Rt950ProImage.LEGACY_SIZE
 
     override fun image(bytes: ByteArray): Rt950ProImage = Rt950ProImage.of(bytes)
 
@@ -82,6 +82,11 @@ object Rt950ProDriver : RadioDriver {
         val function = Rt950ProImage.SEGMENTS[2].imageOffset
         bytes.fill(0, function, function + 96)
         bytes[function] = 3
+        // Zone names as the radio ships them (firmware 0.24 and later).
+        listOf("ZoneOne", "ZoneTwo", "ZoneThree", "ZoneFour", "ZoneFive", "ZoneSix", "ZoneSeven", "ZoneEight", "ZoneNine", "ZoneTen")
+            .forEachIndexed { z, name ->
+                name.forEachIndexed { i, ch -> bytes[Rt950ProImage.ZONE_NAMES.first + z * Rt950ProImage.ZONE_STRIDE + i] = ch.code.toByte() }
+            }
         return Rt950ProImage.of(bytes)
     }
 }

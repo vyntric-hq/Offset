@@ -30,8 +30,17 @@ data class Rt950ProSegment(
  * image 0x7C00..0x7E00  radio 0xB000 modulation parameters
  * image 0x7E00..0x8100  radio 0xD000 modulation names
  * image 0x8100..0x8180  APRS 0x0000 (read with 0x54, written with 0x55)
+ * image 0x8180..0x8280  radio 0xC000 zone names (10 x 16 bytes; since Offset 0.7.7)
  * ```
- * The image does not carry the model string; the clone checks it at every handshake.
+ * The image does not carry the model string; the clone checks it at every handshake. Images saved
+ * before 0.7.7 end after APRS ([LEGACY_SIZE]); they have no zone names and are still accepted.
+ *
+ * Zones: firmware 0.24 and later groups the channels into 10 zones of 99 and keeps the zone names
+ * at radio 0xC000 (PE1HVH's CHIRP driver, confirmed on hardware with firmware 0.29; the radio's
+ * defaults are "ZoneOne" to "ZoneTen"). The firmware version is not readable over the cable, so
+ * [namedZones] trusts that block only when all ten slots hold printable ASCII and one is not empty.
+ * Offset keeps to channels 1 to 960 (zone 10 ends at its channel 69): on older firmware the bytes
+ * after 0x7800 are not channels.
  */
 class Rt950ProImage private constructor(private val data: ByteArray) : RadioImage {
 
@@ -70,16 +79,67 @@ class Rt950ProImage private constructor(private val data: ByteArray) : RadioImag
         return Rt950ProImage(out)
     }
 
+    /** Channels, and the zone names when both images have them (an image without them restores channels only). */
     override fun withWritableRegionsOf(source: RadioImage): Rt950ProImage {
         require(source is Rt950ProImage) { "Not an RT-950 Pro image" }
         val out = data.copyOf()
         source.data.copyInto(out, WRITABLE.first, WRITABLE.first, WRITABLE.last + 1)
+        if (namedZones != null && source.namedZones != null) {
+            source.data.copyInto(out, ZONE_NAMES.first, ZONE_NAMES.first, ZONE_NAMES.last + 1)
+        }
         return Rt950ProImage(out)
     }
 
+    /** Channels may differ, and zone names when this image (the radio as read) has them. Rule 3. */
     override fun differsOnlyInWritableRegions(other: RadioImage): Boolean {
-        if (other !is Rt950ProImage) return false
-        return data.indices.all { it in WRITABLE || data[it] == other.data[it] }
+        if (other !is Rt950ProImage || other.data.size != data.size) return false
+        val namesWritable = namedZones != null
+        return data.indices.all { it in WRITABLE || (namesWritable && it in ZONE_NAMES) || data[it] == other.data[it] }
+    }
+
+    /** True when the zone name bytes differ from [other]'s. */
+    internal fun zoneNamesDiffer(other: Rt950ProImage): Boolean =
+        data.size == SIZE && other.data.size == SIZE && ZONE_NAMES.any { data[it] != other.data[it] }
+
+    override val namedZones: RadioZones? by lazy { readZones() }
+
+    private fun readZones(): RadioZones? {
+        if (data.size != SIZE) return null
+        val names = (0 until ZONE_COUNT).map { z ->
+            val o = ZONE_NAMES_OFFSET + z * ZONE_STRIDE
+            val used = (o until o + ZONE_STRIDE).firstOrNull { data[it] == 0.toByte() || data[it] == 0xFF.toByte() }?.minus(o) ?: ZONE_STRIDE
+            val text = (o until o + used).map { data[it].toInt() and 0xFF }
+            if (text.any { it !in 0x20..0x7E }) return null
+            String(CharArray(text.size) { text[it].toChar() }).trim()
+        }
+        if (names.all { it.isEmpty() }) return null
+        return RadioZones(names, ZONE_SIZE, ZONE_NAME_LENGTH)
+    }
+
+    /**
+     * Renames the zones. An unchanged name keeps its exact bytes; a changed one is written in
+     * printable ASCII, at most 12 characters, padded with the byte its slot already used (after
+     * PE1HVH's encode_zone_names). A renamed zone may not be blank: [namedZones] relies on names
+     * to tell zone firmware apart. A zone the radio already holds blank can stay blank.
+     */
+    override fun withZoneNames(names: List<String>): Rt950ProImage {
+        val current = requireNotNull(namedZones) { "This RT-950 Pro image has no zone names" }
+        require(names.size == ZONE_COUNT) { "The RT-950 Pro has $ZONE_COUNT zones, got ${names.size}" }
+        val out = data.copyOf()
+        names.forEachIndexed { z, raw ->
+            // An unedited name, even one longer than 12 characters, keeps its bytes.
+            if (raw == current.names[z]) return@forEachIndexed
+            val name = RadioZones.clean(raw, ZONE_NAME_LENGTH)
+            if (name == current.names[z]) return@forEachIndexed
+            require(name.isNotEmpty()) { "Zone ${z + 1} needs a name" }
+            val o = ZONE_NAMES_OFFSET + z * ZONE_STRIDE
+            val old = out.copyOfRange(o, o + ZONE_STRIDE)
+            val used = old.indexOfFirst { it == 0.toByte() || it == 0xFF.toByte() }.let { if (it < 0) ZONE_STRIDE else it }
+            val pad: Byte = if (used < ZONE_STRIDE && old[used] == 0.toByte()) 0 else 0xFF.toByte()
+            val width = maxOf(ZONE_NAME_LENGTH, used)
+            for (i in 0 until width) out[o + i] = if (i < name.length) name[i].code.toByte() else pad
+        }
+        return Rt950ProImage(out)
     }
 
     override fun mismatchedChannels(actual: RadioImage): List<Int> {
@@ -129,6 +189,7 @@ class Rt950ProImage private constructor(private val data: ByteArray) : RadioImag
                 Triple(READ, WRITE, 0xB000 to 0x0200),
                 Triple(READ, WRITE, 0xD000 to 0x0300),
                 Triple(READ_APRS, WRITE_APRS, 0x0000 to 0x0080),
+                Triple(READ, WRITE, 0xC000 to 0x0100),
             ).map { (r, w, range) ->
                 Rt950ProSegment(r, w, range.first, range.second, offset).also { offset += range.second }
             }
@@ -137,16 +198,31 @@ class Rt950ProImage private constructor(private val data: ByteArray) : RadioImag
         /** The channel segment, the only memory Offset writes. */
         val CHANNELS: Rt950ProSegment get() = SEGMENTS[0]
 
-        const val SIZE = 33_152
+        /** The zone name segment, read last as PE1HVH's driver does. */
+        val ZONE_SEGMENT: Rt950ProSegment get() = SEGMENTS[7]
+
+        const val SIZE = 33_408
+
+        /** Images saved before zone names were read: no 0xC000 segment. */
+        const val LEGACY_SIZE = 33_152
+
+        const val ZONE_COUNT = 10
+        const val ZONE_SIZE = 99
+        const val ZONE_STRIDE = 16
+        const val ZONE_NAME_LENGTH = 12
+        private const val ZONE_NAMES_OFFSET = LEGACY_SIZE
 
         /** Image offsets Offset may write: the 960 channel records. Rule 3. */
         val WRITABLE: IntRange = 0 until CHANNEL_COUNT * RECORD
+
+        /** Image offsets of the ten zone names, written only on a radio whose read shows them. */
+        val ZONE_NAMES: IntRange = ZONE_NAMES_OFFSET until ZONE_NAMES_OFFSET + ZONE_COUNT * ZONE_STRIDE
 
         fun channelOffset(index: Int): Int = index * RECORD
 
         /** Wraps raw bytes after validating the size. */
         fun of(bytes: ByteArray): Rt950ProImage {
-            if (bytes.size != SIZE) {
+            if (bytes.size != SIZE && bytes.size != LEGACY_SIZE) {
                 throw InvalidImageException("Image is ${bytes.size} bytes; an RT-950 Pro image is $SIZE bytes.")
             }
             return Rt950ProImage(bytes.copyOf())

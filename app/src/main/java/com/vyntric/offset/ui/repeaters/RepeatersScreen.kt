@@ -234,7 +234,7 @@ fun RepeatersScreen(container: AppContainer) {
         ChannelEditorSheet(
             title = "Manual channel",
             initial = null,
-            model = container.stagingTarget().profile,
+            model = container.stagingProfile(),
             onSave = { vm.addManual(it); manual = false },
             onDismiss = { manual = false },
         )

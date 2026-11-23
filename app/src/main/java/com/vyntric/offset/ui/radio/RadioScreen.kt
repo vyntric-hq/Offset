@@ -61,6 +61,10 @@ import com.vyntric.offset.protocol.RadioDrivers
 import com.vyntric.offset.protocol.Uv5rImage
 import com.vyntric.offset.ui.Fmt
 import com.vyntric.offset.ui.channel.ChannelEditorSheet
+import com.vyntric.offset.ui.channel.ChoiceRow
+import com.vyntric.offset.ui.channel.zoneLabel
+import com.vyntric.offset.domain.StagedZones
+import com.vyntric.offset.protocol.RadioZones
 import com.vyntric.offset.ui.components.rememberChannelNumberWidth
 import com.vyntric.offset.ui.components.BarAction
 import com.vyntric.offset.ui.components.ButtonRow
@@ -101,6 +105,7 @@ fun RadioScreen(container: AppContainer) {
     var confirming by remember { mutableStateOf(false) }
     var presets by remember { mutableStateOf(false) }
     var naming by remember { mutableStateOf(false) }
+    var zonesOpen by remember { mutableStateOf(false) }
     // Drag handles only while reordering, so scrolling never moves a channel by accident.
     var reordering by rememberSaveable { mutableStateOf(false) }
     val canReorder = !fixedSlots && state.staging.size > 1
@@ -143,11 +148,19 @@ fun RadioScreen(container: AppContainer) {
             }
         }
 
-        if (state.staging.isNotEmpty()) {
+        if (state.staging.isNotEmpty() || state.zones != null) {
             item(key = "set") {
                 InsetSection(header = "Set", footer = if (state.setBase == null) "Read the radio or load an image from Images to save this set." else null) {
                     cell {
                         CellRow("Name", value = state.setName.ifBlank { SaveNamedImage.UNTITLED }, chevron = true, onClickLabel = "Rename the set") { naming = true }
+                    }
+                    state.zones?.let { z ->
+                        cell { CellRow("Zones", value = "${z.names.size}", chevron = true, onClickLabel = "Rename zones") { zonesOpen = true } }
+                        cell {
+                            ChoiceRow("New channels go to", z.addTo ?: -1, listOf(-1) + z.names.indices, { if (it < 0) "Any zone" else zoneLabel(it, z.names) }) {
+                                vm.setAddZone(it.takeIf { zone -> zone >= 0 })
+                            }
+                        }
                     }
                     if (state.snapshot == null && state.setBase != null) state.baseImage?.let { cell { DetailRow("Based on", it.name) } }
                     cell { ButtonRow("Save to Images", enabled = state.canSaveSet, onClick = { vm.saveSet() }) }
@@ -161,7 +174,7 @@ fun RadioScreen(container: AppContainer) {
                     Text("Load from radio", style = OffsetTheme.type.footnote, color = colors.accent,
                         modifier = Modifier.tappable { vm.loadFromRadio() })
                 }
-                if (!fixedSlots && state.staging.withIndex().any { (i, s) -> s.slot != i }) {
+                if (container.buildStaging.hasGaps(state.staging, state.target)) {
                     Text("Close gaps", style = OffsetTheme.type.footnote, color = colors.accent,
                         modifier = Modifier.tappable("Renumber channels without gaps") { vm.compact() })
                 }
@@ -189,25 +202,34 @@ fun RadioScreen(container: AppContainer) {
             }
         } else {
             val list = state.staging
-            list.forEachIndexed { index, staged ->
-                item(key = staged.key) {
-                    val problems = state.problems[staged.key]
-                    GroupedCell(
-                        CellPosition.of(index, list.size),
-                        Modifier.animateItem().let { if (reordering) it.reorderable(reorder, staged.key) else it },
-                        separatorInset = numberColumn,
-                    ) {
-                        SwipeActionRow("Remove", onAction = { vm.remove(staged.key) }) {
-                            StagedRow(
-                                index = index,
-                                numberColumn = numberColumn,
-                                staged = staged,
-                                problem = problems?.firstOrNull()?.message,
-                                handleModifier = if (reordering) Modifier.dragHandle(reorder, staged.key) { haptics.select() } else null,
-                                onClick = { if (staged.channel.digitalMode == null) editing = staged else vm.explainDigital(staged.channel) },
-                                onMoveUp = if (reordering && index > 0) ({ vm.move(staged.key, list[index - 1].key) }) else null,
-                                onMoveDown = if (reordering && index < list.lastIndex) ({ vm.move(staged.key, list[index + 1].key) }) else null,
-                            )
+            val zones = state.zones
+            // With zones, each zone is its own group under its name, numbered as the radio numbers it.
+            val groups = if (zones == null) listOf(null to list) else list.groupBy { zones.zones.zoneOf(it.slot) }.toList()
+            groups.forEach { (zone, entries) ->
+                if (zone != null && zones != null) {
+                    item(key = "zone-$zone") { SectionHeader(zoneLabel(zone, zones.names)) }
+                }
+                entries.forEachIndexed { position, staged ->
+                    val index = list.indexOf(staged)
+                    item(key = staged.key) {
+                        val problems = state.problems[staged.key]
+                        GroupedCell(
+                            CellPosition.of(position, entries.size),
+                            Modifier.animateItem().let { if (reordering) it.reorderable(reorder, staged.key) else it },
+                            separatorInset = numberColumn,
+                        ) {
+                            SwipeActionRow("Remove", onAction = { vm.remove(staged.key) }) {
+                                StagedRow(
+                                    number = zones?.let { staged.slot % it.zones.size + 1 } ?: (staged.slot + 1),
+                                    numberColumn = numberColumn,
+                                    staged = staged,
+                                    problem = problems?.firstOrNull()?.message,
+                                    handleModifier = if (reordering) Modifier.dragHandle(reorder, staged.key) { haptics.select() } else null,
+                                    onClick = { if (staged.channel.digitalMode == null) editing = staged else vm.explainDigital(staged.channel) },
+                                    onMoveUp = if (reordering && index > 0) ({ vm.move(staged.key, list[index - 1].key) }) else null,
+                                    onMoveDown = if (reordering && index < list.lastIndex) ({ vm.move(staged.key, list[index + 1].key) }) else null,
+                                )
+                            }
                         }
                     }
                 }
@@ -230,10 +252,13 @@ fun RadioScreen(container: AppContainer) {
             title = "Edit channel",
             initial = staged.channel,
             model = state.model,
-            onSave = { vm.replace(staged.key, it); editing = null },
+            onSave = { vm.replace(staged.key, it, null); editing = null },
             onDismiss = { editing = null },
             onDelete = { vm.remove(staged.key); editing = null },
             deleteLabel = "Remove from staging",
+            zoneNames = state.zones?.names,
+            initialZone = state.zones?.zones?.zoneOf(staged.slot) ?: 0,
+            onSaveInZone = { ch, zone -> vm.replace(staged.key, ch, zone); editing = null },
         )
     }
     if (adding) {
@@ -243,6 +268,11 @@ fun RadioScreen(container: AppContainer) {
             model = state.model,
             onSave = { vm.addManual(it); adding = false },
             onDismiss = { adding = false },
+            zoneNames = state.zones?.names,
+            initialZone = state.zones?.let { z ->
+                state.target.addSlots.firstOrNull { slot -> state.staging.none { it.slot == slot } }?.let { z.zones.zoneOf(it) }
+            } ?: 0,
+            onSaveInZone = { ch, zone -> vm.addManual(ch, zone); adding = false },
         )
     }
     if (presets) {
@@ -266,6 +296,45 @@ fun RadioScreen(container: AppContainer) {
     }
     if (naming) {
         SetNameSheet(state.setName, onDismiss = { naming = false }) { vm.setName(it); naming = false }
+    }
+    val zones = state.zones
+    if (zonesOpen && zones != null) {
+        ZonesSheet(zones, state.staging.groupingBy { zones.zones.zoneOf(it.slot) }.eachCount(), onDismiss = { zonesOpen = false }, onRename = vm::renameZone)
+    }
+}
+
+/** The zones with their channel counts; tapping one renames it. */
+@Composable
+private fun ZonesSheet(zones: StagedZones, counts: Map<Int, Int>, onDismiss: () -> Unit, onRename: (Int, String) -> Unit) {
+    var editing by rememberSaveable { mutableStateOf<Int?>(null) }
+    var text by rememberSaveable(editing) { mutableStateOf(editing?.let { zones.names[it] }.orEmpty()) }
+    val length = zones.zones.nameLength
+    val clean = RadioZones.clean(text, length)
+    OffsetSheet(
+        onDismiss = onDismiss,
+        title = editing?.let { "Zone ${it + 1}" } ?: "Zones",
+        leadingAction = { if (editing == null) BarAction("Done", onClick = onDismiss) else BarAction("Zones") { editing = null } },
+        trailingAction = editing?.let { z -> { BarAction("Save", enabled = clean.isNotEmpty()) { onRename(z, clean); editing = null } } },
+        page = editing,
+    ) {
+        BackHandler(enabled = editing != null) { editing = null }
+        val z = editing
+        if (z == null) {
+            InsetSection {
+                zones.names.forEachIndexed { zone, _ ->
+                    cell {
+                        CellRow(zoneLabel(zone, zones.names), value = channelCount(counts[zone] ?: 0), chevron = true, onClickLabel = "Rename zone ${zone + 1}") { editing = zone }
+                    }
+                }
+            }
+        } else {
+            InsetSection(footer = "Up to $length characters.") {
+                cell {
+                    TextFieldRow("Name", text, { text = it.filter { c -> c in ' '..'~' }.take(length) },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words))
+                }
+            }
+        }
     }
 }
 
@@ -353,7 +422,8 @@ private fun ProgressRow(running: RadioOperations.State.Running) {
 @Suppress("ModifierParameter") // handleModifier targets the drag handle, not the row
 @Composable
 private fun StagedRow(
-    index: Int,
+    /** The channel number the radio shows: within its zone on radios with zones. */
+    number: Int,
     numberColumn: Dp,
     staged: StagedChannel,
     problem: String?,
@@ -373,7 +443,7 @@ private fun StagedRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            "${staged.slot + 1}",
+            "$number",
             style = OffsetTheme.type.footnote,
             color = colors.secondaryLabel,
             maxLines = 1,
@@ -452,9 +522,11 @@ private fun WriteConfirmSheet(state: RadioUiState, onCancel: () -> Unit, onConfi
             cell { DetailRow("Channels", "${state.staging.size} of ${state.target.capacity}") }
             val gmrs = state.staging.count { Gmrs.isGmrs(it.channel.rxFreqHz) }
             if (gmrs > 0) cell { DetailRow("GMRS or FRS channels", "$gmrs, transmit enabled") }
+            if (state.renamedZones > 0) cell { DetailRow("Zone names", "${state.renamedZones} renamed") }
         }
         SectionFooter(
-            "Offset reads the radio again, saves a backup, writes only channel memory and the lists that refer to channels, " +
+            "Offset reads the radio again, saves a backup, writes only channel memory and the lists that refer to channels" +
+                (if (state.renamedZones > 0) " and zone names, " else ", ") +
                 "then reads back to verify. Settings and calibration are never written. Keep this radio connected and the cable still until it finishes.",
         )
         Column(Modifier.padding(Dimens.gutter)) {

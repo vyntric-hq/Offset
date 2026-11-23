@@ -11,7 +11,23 @@ import com.vyntric.offset.protocol.Power
 import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.RadioImage
 import com.vyntric.offset.protocol.RadioProfile
+import com.vyntric.offset.protocol.RadioZones
 import com.vyntric.offset.protocol.Squelch
+
+/**
+ * A staged set's zones, on radios whose zones are fixed runs of slots (the RT-950 Pro): the names
+ * to write, and the zone new channels go to ([addTo], or the first free slot anywhere when null).
+ */
+data class StagedZones(val zones: RadioZones, val addTo: Int? = null) {
+    val names: List<String> get() = zones.names
+
+    fun renamed(zone: Int, name: String): StagedZones =
+        copy(zones = zones.copy(names = zones.names.toMutableList().also { it[zone] = RadioZones.clean(name, zones.nameLength) }))
+
+    companion object {
+        fun of(image: RadioImage?): StagedZones? = image?.namedZones?.let { StagedZones(it) }
+    }
+}
 
 /**
  * The radio a staging list is built for: how many slots it has, what a channel may hold, and
@@ -25,7 +41,13 @@ data class StagingTarget(
     val digitalModes: Set<String> = emptySet(),
     /** Why channels keep their numbers on this radio ([RadioDriver.fixedSlotsReason]). */
     val fixedSlotsReason: String = "",
+    /** The set's zones, when the radio groups slots into named zones. */
+    val zones: StagedZones? = null,
 ) {
+    /** Where new channels go: the chosen zone's slots, else every slot. */
+    val addSlots: IntRange
+        get() = zones?.addTo?.let { zones.zones.slots(it, capacity) } ?: (0 until capacity)
+
     companion object {
         fun of(image: RadioImage) = StagingTarget(image.capacity, image.profile, image.driver.fixedSlots, image.driver.digitalModes, image.driver.fixedSlotsReason)
         fun of(driver: RadioDriver) = StagingTarget(driver.capacity, driver.defaultProfile, driver.fixedSlots, driver.digitalModes, driver.fixedSlotsReason)
@@ -41,7 +63,10 @@ class BuildStaging(private val newKey: () -> Long) {
     fun fromImage(image: RadioImage, origin: ChannelOrigin = ChannelOrigin.RADIO): List<StagedChannel> =
         image.channels().withIndex().mapNotNull { (slot, ch) -> ch?.let { StagedChannel(newKey(), it, origin, slot = slot) } }
 
-    /** Adds channels to the lowest free slots, skipping ones already staged; stops when every slot is used. */
+    /**
+     * Adds channels to the lowest free slots ([StagingTarget.addSlots]: in the chosen zone, if
+     * any), skipping ones already staged; stops when every slot is used.
+     */
     fun add(
         current: List<StagedChannel>,
         channels: List<Channel>,
@@ -54,7 +79,7 @@ class BuildStaging(private val newKey: () -> Long) {
         var duplicates = 0
         var overflow = 0
         channels.forEachIndexed { i, ch ->
-            val free = (0 until target.capacity).firstOrNull { it !in used }
+            val free = target.addSlots.firstOrNull { it !in used }
             when {
                 out.any { sameRf(it.channel, ch) } -> duplicates++
                 free == null -> overflow++
@@ -74,11 +99,17 @@ class BuildStaging(private val newKey: () -> Long) {
     /**
      * Moves the entry at list position [from] to [to] (positions in slot order). The set of used
      * slots does not change: entries are permuted across them, so gaps stay where they are.
-     * Radios with [StagingTarget.fixedSlots] never renumber channels, so nothing moves.
+     * Radios with [StagingTarget.fixedSlots] never renumber channels, so nothing moves. With zones,
+     * a move onto a channel in another zone moves only the dragged entry, to that zone's first free
+     * slot, so no other channel changes zone.
      */
     fun move(current: List<StagedChannel>, from: Int, to: Int, target: StagingTarget): List<StagedChannel> {
         val ordered = sorted(current)
         if (target.fixedSlots || from !in ordered.indices || to !in ordered.indices || from == to) return ordered
+        val zones = target.zones?.zones
+        if (zones != null && zones.zoneOf(ordered[from].slot) != zones.zoneOf(ordered[to].slot)) {
+            return moveToZone(ordered, ordered[from].key, zones.zoneOf(ordered[to].slot), target) ?: ordered
+        }
         val slots = ordered.map { it.slot }
         val moved = ordered.toMutableList().apply { add(to, removeAt(from)) }
         return moved.mapIndexed { i, s -> s.copy(slot = slots[i]) }
@@ -87,9 +118,35 @@ class BuildStaging(private val newKey: () -> Long) {
     /** Removes an entry; its slot is left empty. */
     fun remove(current: List<StagedChannel>, key: Long): List<StagedChannel> = current.filterNot { it.key == key }
 
-    /** Packs channels into slots 1..n in their current order, for users who want no gaps. */
-    fun compact(current: List<StagedChannel>, target: StagingTarget): List<StagedChannel> =
-        if (target.fixedSlots) sorted(current) else sorted(current).mapIndexed { i, s -> s.copy(slot = i) }
+    /**
+     * Moves the entry [key] to the first free slot of [zone]. Returns null when that zone is full;
+     * an entry already in [zone] stays where it is.
+     */
+    fun moveToZone(current: List<StagedChannel>, key: Long, zone: Int, target: StagingTarget): List<StagedChannel>? {
+        val zones = target.zones?.zones ?: return sorted(current)
+        val entry = current.firstOrNull { it.key == key } ?: return sorted(current)
+        if (target.fixedSlots || zones.zoneOf(entry.slot) == zone) return sorted(current)
+        val used = current.map { it.slot }.toSet()
+        val free = zones.slots(zone, target.capacity).firstOrNull { it !in used } ?: return null
+        return sorted(current.map { if (it.key == key) it.copy(slot = free) else it })
+    }
+
+    /**
+     * Packs channels into slots 1..n in their current order, for users who want no gaps. With
+     * zones, each zone is packed from its own first slot and no channel changes zone.
+     */
+    fun compact(current: List<StagedChannel>, target: StagingTarget): List<StagedChannel> {
+        if (target.fixedSlots) return sorted(current)
+        val zones = target.zones?.zones ?: return sorted(current).mapIndexed { i, s -> s.copy(slot = i) }
+        return sorted(current).groupBy { zones.zoneOf(it.slot) }.flatMap { (zone, entries) ->
+            val first = zone * zones.size
+            entries.mapIndexed { i, s -> s.copy(slot = first + i) }
+        }
+    }
+
+    /** True when [compact] would renumber something. */
+    fun hasGaps(current: List<StagedChannel>, target: StagingTarget): Boolean =
+        !target.fixedSlots && compact(current, target).zip(sorted(current)).any { (a, b) -> a.slot != b.slot }
 
     private fun sorted(list: List<StagedChannel>) = list.sortedBy { it.slot }
 

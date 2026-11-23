@@ -169,6 +169,13 @@ interface RadioImage {
     /** Channel indexes whose stored bytes differ between this image and [actual]. Rule 5. */
     fun mismatchedChannels(actual: RadioImage): List<Int>
 
+    /** The radio's named zones when Offset can rename them, else null. */
+    val namedZones: RadioZones? get() = null
+
+    /** A copy with the zones renamed ([namedZones] must not be null). Zone names are writable memory. */
+    fun withZoneNames(names: List<String>): RadioImage =
+        throw UnsupportedOperationException("${driver.displayName} zones cannot be renamed")
+
     /**
      * CHIRP .img metadata for this image (rclass, vendor, model, variant and any extras). A family
      * CHIRP cannot open still gets metadata, so Offset can read its own exports back.

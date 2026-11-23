@@ -231,7 +231,10 @@ private fun Outcome(outcome: WriteRadio.Outcome, onOpen: (Long) -> Unit, onDone:
             "${outcome.blocksWritten} memory block${if (outcome.blocksWritten == 1) "" else "s"} written and read back correctly. " +
                 (outcome.saveError ?: "The result is saved in Images, and a backup of the radio from before the write is there too."))
         is WriteRadio.Outcome.Mismatch -> Quad(Icons.Rounded.Warning, colors.warning, "Verification found differences",
-            "Channels ${outcome.channels.joinToString(", ")} did not read back as written. Check them on the radio. " +
+            listOfNotNull(
+                outcome.channels.takeIf { it.isNotEmpty() }?.let { "Channels ${it.joinToString(", ")} did not read back as written." },
+                "The zone names did not read back as written.".takeIf { outcome.zoneNamesDiffer },
+            ).joinToString(" ") + " Check them on the radio. " +
                 "The backup from before the write is in Images if you want to restore it." +
                 (outcome.saveError?.let { " $it" } ?: ""))
         is WriteRadio.Outcome.Blocked -> Quad(Icons.Rounded.Error, colors.destructive, "Nothing was written",

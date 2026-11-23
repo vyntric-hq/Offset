@@ -19,8 +19,9 @@ import java.time.Clock
  * Writes channels to the radio under the safety rules:
  * 1. read the full image from the radio first;
  * 2. block when the image's ident does not match the radio;
- * 3. patch only the memory the radio's driver lets Offset write (channels, and on the DM-32UV the
- *    zones, scan lists and TX contacts that refer to them) on top of the radio's own image;
+ * 3. patch only the memory the radio's driver lets Offset write (channels; on the DM-32UV the
+ *    zones, scan lists and TX contacts that refer to them; on the RT-950 Pro the zone names) on
+ *    top of the radio's own image;
  * 4. save a timestamped backup of the radio's image before writing;
  * 5. read back after writing and compare;
  * 7. report every failure, saying whether the radio may be partially written.
@@ -39,8 +40,12 @@ class WriteRadio(
     private val naming: SaveNamedImage = SaveNamedImage(library),
 ) {
     sealed interface Content {
-        /** Up to the radio's capacity of slots, index = radio slot; null slots (and slots past the end) are cleared. */
-        data class Channels(val channels: List<Channel?>) : Content
+        /**
+         * Up to the radio's capacity of slots, index = radio slot; null slots (and slots past the
+         * end) are cleared. [zoneNames] renames the radio's zones when its read shows them, and is
+         * left out otherwise.
+         */
+        data class Channels(val channels: List<Channel?>, val zoneNames: List<String>? = null) : Content
 
         /** Copy the writable memory of a stored image ("Restore to radio"). */
         data class FromImage(val image: RadioImage) : Content
@@ -62,8 +67,14 @@ class WriteRadio(
         /** [savedImageId] is null if the result could not be stored; [saveError] then says why. */
         data class Verified(val savedImageId: Long?, val backupImageId: Long, val blocksWritten: Int, val saveError: String? = null) : Outcome
 
-        /** Written and read back, but some channels differ from what was sent. */
-        data class Mismatch(val channels: List<Int>, val savedImageId: Long?, val backupImageId: Long, val saveError: String? = null) : Outcome
+        /** Written and read back, but some channels (or the zone names) differ from what was sent. */
+        data class Mismatch(
+            val channels: List<Int>,
+            val savedImageId: Long?,
+            val backupImageId: Long,
+            val saveError: String? = null,
+            val zoneNamesDiffer: Boolean = false,
+        ) : Outcome
 
         /** Stopped before anything was written. The radio is unchanged. */
         data class Blocked(val stage: Stage, val reasons: List<String>) : Outcome
@@ -170,11 +181,18 @@ class WriteRadio(
                     ChannelValidator.validate(ch, radio.profile).forEach { p -> reasons += "Channel ${i + 1}: ${p.message}" }
                 }
                 if (reasons.isEmpty()) {
-                    try {
+                    val channels = try {
                         radio.withChannels(c.channels)
                     } catch (e: IllegalArgumentException) {
                         return Outcome.Blocked(Stage.CHECK, listOf("A channel could not be encoded: ${e.message}"))
                     }
+                    if (c.zoneNames != null && radio.namedZones != null) {
+                        try {
+                            channels.withZoneNames(c.zoneNames)
+                        } catch (e: IllegalArgumentException) {
+                            return Outcome.Blocked(Stage.CHECK, listOf("The zone names could not be written: ${e.message}"))
+                        }
+                    } else channels
                 } else radio
             }
         }
@@ -216,6 +234,7 @@ class WriteRadio(
         }
         session.update(readBack, clock.millis())
         val mismatches = target.mismatchedChannels(readBack)
+        val zoneNamesDiffer = target.namedZones?.names != readBack.namedZones?.names
         // The radio is already written; a storage failure here must not hide the result.
         var saveError: String? = null
         val savedId = try {
@@ -227,10 +246,10 @@ class WriteRadio(
             saveError = "The radio was written, but the result could not be saved to Images: ${e.message ?: e.javaClass.simpleName}"
             null
         }
-        return if (mismatches.isEmpty()) {
+        return if (mismatches.isEmpty() && !zoneNamesDiffer) {
             Outcome.Verified(savedId, backupId, blocks, saveError)
         } else {
-            Outcome.Mismatch(mismatches.map { it + 1 }, savedId, backupId, saveError)
+            Outcome.Mismatch(mismatches.map { it + 1 }, savedId, backupId, saveError, zoneNamesDiffer)
         }
     }
 

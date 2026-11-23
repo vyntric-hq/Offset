@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -21,7 +22,7 @@ class RadioScreenUiTest {
 
     @Before fun simulate() {
         val app = InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as OffsetApp
-        app.container.settings.update { it.copy(simulatedRadio = true) }
+        app.container.settings.update { it.copy(simulatedRadio = true, radioType = com.vyntric.offset.protocol.Uv5rDriver.id) }
         runBlocking {
             app.container.simulatedLink.reset()
             app.container.staging.clear()
@@ -82,5 +83,27 @@ class RadioScreenUiTest {
             rule.onAllNodesWithText("Saved to Images as \"Hike\".").fetchSemanticsNodes().isNotEmpty() ||
                 rule.onAllNodesWithText("Already in Images as \"Hike\".").fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    /** RT-950 Pro: rename a zone from the Radio tab and write it with the channels. */
+    @Test fun renameAZoneAndWriteIt() {
+        val c = (InstrumentationRegistry.getInstrumentation().targetContext.applicationContext as OffsetApp).container
+        c.settings.update { it.copy(radioType = com.vyntric.offset.protocol.Rt950ProDriver.id) }
+        rule.onNodeWithText("Read radio").performClick()
+        rule.waitUntil(60_000) { rule.onAllNodesWithText("Write 6 channels to radio").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("1 · ZONEONE").assertExists()
+        rule.onNodeWithText("Zones").performClick()
+        rule.onNodeWithText("1 · ZoneOne").performClick()
+        rule.onAllNodes(hasSetTextAction())[0].performTextReplacement("Repeaters")
+        rule.onNodeWithText("Save").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("1 · Repeaters").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Done").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("1 · REPEATERS").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Write 6 channels to radio").performClick()
+        rule.onNodeWithText("1 renamed").assertExists()
+        rule.onNodeWithText("Write 6 channels").performClick()
+        rule.waitUntil(120_000) { rule.onAllNodesWithText("Written and verified").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("Done").performClick()
+        assertEquals("Repeaters", c.radioSession.last.value!!.image.namedZones!!.names[0])
     }
 }

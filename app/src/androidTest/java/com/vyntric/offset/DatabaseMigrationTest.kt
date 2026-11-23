@@ -44,10 +44,11 @@ class DatabaseMigrationTest {
         val stored = repo.load(summary.id)!!
         assertEquals(image, stored.image)
         assertEquals(true, repo.hasFactoryImage(image.identity))
-        // Schemas 4 and 5: staging kept its row, starts unnamed and has no base image.
+        // Schemas 4 to 6: staging kept its row, starts unnamed, with no base image and no zones.
         val staging = com.vyntric.offset.data.StagingRepository(room.staging(), Clock.systemUTC())
         assertEquals("", staging.name())
         assertEquals(null, staging.observeBaseImageId().first())
+        assertEquals(null, staging.zones())
         // Bulk delete runs as one transaction on the real database.
         repo.deleteAll(listOf(summary.id))
         assertEquals(0, repo.observeAll().first().size)

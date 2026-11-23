@@ -7,6 +7,17 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.7.7] - 2026-11-22
+
+### Added
+
+- RT-950 Pro zones (firmware 0.24 and later, 10 zones of 99 channels). Staging groups channels
+  under their zone names. Rename zones from Zones in the Set section, pick a channel's zone in
+  the channel editor, and choose where new channels go. A write renames the zones on the radio
+  along with the channels, and the read back checks the names. Saved sets keep their zone names.
+- Offset reads the RT-950 Pro zone names at 0xC000. Images saved by earlier versions still open;
+  they have no zone names.
+
 ## [0.7.6] - 2026-11-22
 
 ### Changed

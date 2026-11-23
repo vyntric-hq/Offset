@@ -99,4 +99,22 @@ class StagingRepositoryTest {
         repo.put(listOf(StagedChannel(1, Channel(146_520_000), ChannelOrigin.MANUAL)))
         assertFalse(repo.get().single().modeUnknown)
     }
+
+    @Test fun `zones are kept through edits, renames and clear, and set with a load or a read`() = runTest {
+        val repo = StagingRepository(MemoryDao(), Clock.systemUTC())
+        assertEquals(null, repo.zones())
+        val zones = com.vyntric.offset.domain.StagedZones.of(com.vyntric.offset.protocol.Rt950ProDriver.sampleImage())!!
+        val ch = StagedChannel(1, Channel(146_520_000, name = "CALL"), ChannelOrigin.IMAGE, slot = 0)
+        repo.put(listOf(ch), "Trip", baseImageId = 3, zones = zones)
+        repo.setName("Camp")
+        repo.updateZones { it?.renamed(2, "CB")?.copy(addTo = 2) }
+        repo.update { it to Unit }
+        repo.clear()
+        val kept = repo.zones()!!
+        assertEquals("CB", kept.names[2])
+        assertEquals(2, kept.addTo)
+        assertEquals(kept, repo.observeZones().first())
+        repo.update(zonesFor = { _, _ -> null }) { listOf(ch) to Unit }
+        assertEquals(null, repo.zones())
+    }
 }

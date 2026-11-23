@@ -64,7 +64,8 @@ class Rt950ProSimulator(
 
     init {
         val bytes = image.bytes()
-        for (s in Rt950ProImage.SEGMENTS) {
+        // An image saved before 0.7.7 has no zone name segment; that memory stays blank.
+        for (s in Rt950ProImage.SEGMENTS.filter { it.imageOffset + it.length <= bytes.size }) {
             bytes.copyInto(space(s.readCommand), s.address, s.imageOffset, s.imageOffset + s.length)
         }
     }

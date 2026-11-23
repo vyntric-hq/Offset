@@ -130,7 +130,10 @@ class ImageDetailViewModel(private val c: AppContainer, private val id: Long) : 
         val img = stored.image
         // Staging is now for this image's radio, on every tab; a read of another type no longer applies.
         c.selectRadioType(img.driver)
-        c.staging.put(c.buildStaging.fromImage(img, ChannelOrigin.IMAGE), stored.name, baseImageId = id)
+        c.staging.put(
+            c.buildStaging.fromImage(img, ChannelOrigin.IMAGE), stored.name, baseImageId = id,
+            zones = com.vyntric.offset.domain.StagedZones.of(img),
+        )
         message.value = Toast("Staging now holds this image's ${img.usedChannelCount} channels.")
     }
 

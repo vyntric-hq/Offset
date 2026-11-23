@@ -8,6 +8,8 @@ import com.vyntric.offset.data.db.StagingDao
 import com.vyntric.offset.data.db.StagingEntity
 import com.vyntric.offset.domain.ChannelOrigin
 import com.vyntric.offset.domain.StagedChannel
+import com.vyntric.offset.domain.StagedZones
+import com.vyntric.offset.protocol.RadioZones
 import com.vyntric.offset.protocol.Channel
 import com.vyntric.offset.protocol.Duplex
 import com.vyntric.offset.protocol.Modulation
@@ -36,56 +38,87 @@ class StagingRepository(private val dao: StagingDao, private val clock: Clock) {
     /** The library image staging was loaded from, or null. */
     fun observeBaseImageId(): Flow<Long?> = dao.observe().map { it?.baseImageId }.distinctUntilChanged()
 
+    /** The set's zones, on radios with named zones; null otherwise. */
+    fun observeZones(): Flow<StagedZones?> = dao.observe().map { decodeZones(it?.zones) }.distinctUntilChanged()
+
     suspend fun get(): List<StagedChannel> = decode(dao.get()?.json)
 
     suspend fun name(): String = dao.get()?.name.orEmpty()
 
-    /** Replaces the list; the name and the base image are kept. */
+    suspend fun zones(): StagedZones? = decodeZones(dao.get()?.zones)
+
+    /** Replaces the list; the name, base image and zones are kept. */
     suspend fun put(list: List<StagedChannel>) = mutex.withLock { write(list) }
 
     /**
-     * Replaces the list, the name and the base image together: an image loaded into staging
-     * passes its id, and channels taken from a radio read pass null.
+     * Replaces the list, the name, the base image and the zones together: an image loaded into
+     * staging passes its id and its zones, and channels taken from a radio read pass a null id.
      */
-    suspend fun put(list: List<StagedChannel>, name: String, baseImageId: Long?) = mutex.withLock {
-        write(list, name.trim(), Base(baseImageId))
+    suspend fun put(list: List<StagedChannel>, name: String, baseImageId: Long?, zones: StagedZones? = null) = mutex.withLock {
+        write(list, name.trim(), Change(baseImageId), Change(zones))
     }
 
-    suspend fun setName(name: String) = mutex.withLock {
-        val current = dao.get()
-        dao.put(StagingEntity(json = current?.json ?: "[]", updatedAt = clock.millis(), name = name.trim(), baseImageId = current?.baseImageId))
+    suspend fun setName(name: String) = mutex.withLock { write(get(), name.trim()) }
+
+    /** Replaces the zones with [transform] of the current ones. */
+    suspend fun updateZones(transform: (StagedZones?) -> StagedZones?) = mutex.withLock {
+        write(get(), zones = Change(transform(zones())))
     }
 
-    /** Empties the list and forgets the name. The base image stays, so a new set can be built over it. */
+    /** Empties the list and forgets the name. The base image and zones stay, so a new set can be built over them. */
     suspend fun clear() = mutex.withLock { write(emptyList(), "") }
 
     /**
      * Atomically replaces the list with [transform] of the current list. Concurrent edits (for
      * example a burst of drag moves) are applied one after another, never lost. When
      * [forgetBaseIf] holds for the result, the base image is dropped in the same write, as when
-     * staging is refilled from a radio read.
+     * staging is refilled from a radio read; [zonesFor] sets the zones from the result and the
+     * current zones in the same write.
      */
     suspend fun <R> update(
         forgetBaseIf: (R) -> Boolean = { false },
+        zonesFor: ((R, StagedZones?) -> StagedZones?)? = null,
         transform: (List<StagedChannel>) -> Pair<List<StagedChannel>, R>,
     ): R = mutex.withLock {
         val (next, result) = transform(get())
-        write(next, base = if (forgetBaseIf(result)) Base(null) else null)
+        write(
+            next,
+            base = if (forgetBaseIf(result)) Change(null) else null,
+            zones = zonesFor?.let { Change(it(result, zones())) },
+        )
         result
     }
 
-    /** A new base image id; null keeps the current one. */
-    private class Base(val id: Long?)
+    /** A new value for a column; a null [Change] keeps the current one. */
+    private class Change<T>(val value: T)
 
-    private suspend fun write(list: List<StagedChannel>, name: String? = null, base: Base? = null) {
+    private suspend fun write(
+        list: List<StagedChannel>,
+        name: String? = null,
+        base: Change<Long?>? = null,
+        zones: Change<StagedZones?>? = null,
+    ) {
         val current = dao.get()
         dao.put(
             StagingEntity(
                 json = json.encodeToString(list.map { it.toDto() }), updatedAt = clock.millis(),
                 name = name ?: current?.name.orEmpty(),
-                baseImageId = if (base != null) base.id else current?.baseImageId,
+                baseImageId = if (base != null) base.value else current?.baseImageId,
+                zones = if (zones != null) zones.value?.let { json.encodeToString(ZonesDto.from(it)) } else current?.zones,
             )
         )
+    }
+
+    private fun decodeZones(text: String?): StagedZones? =
+        text?.let { runCatching { json.decodeFromString<ZonesDto>(it).toDomain() }.getOrNull() }
+
+    @Serializable
+    internal data class ZonesDto(val names: List<String>, val size: Int, val nameLength: Int, val addTo: Int? = null) {
+        fun toDomain() = StagedZones(RadioZones(names, size, nameLength), addTo?.takeIf { it in names.indices })
+
+        companion object {
+            fun from(z: StagedZones) = ZonesDto(z.names, z.zones.size, z.zones.nameLength, z.addTo)
+        }
     }
 
     private fun decode(text: String?): List<StagedChannel> {

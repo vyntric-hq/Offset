@@ -197,7 +197,12 @@ fun ChannelEditorSheet(
     onDismiss: () -> Unit,
     onDelete: (() -> Unit)? = null,
     deleteLabel: String = "Delete channel",
+    /** The radio's zone names, to pick the channel's zone; [onSaveInZone] then receives the save. */
+    zoneNames: List<String>? = null,
+    initialZone: Int = 0,
+    onSaveInZone: ((Channel, Int) -> Unit)? = null,
 ) {
+    var zone by remember(initialZone) { mutableStateOf(initialZone) }
     var draft by remember(initial) { mutableStateOf(initial?.let { ChannelDraft.from(it) } ?: ChannelDraft()) }
     var touched by remember { mutableStateOf(initial != null) }
     val result = draft.build(model)
@@ -223,9 +228,16 @@ fun ChannelEditorSheet(
         title = title,
         leadingAction = { BarAction("Cancel", onClick = onDismiss) },
         trailingAction = {
-            BarAction("Save", enabled = result.channel != null) { result.channel?.let(onSave) }
+            BarAction("Save", enabled = result.channel != null) {
+                result.channel?.let { ch -> if (zoneNames != null && onSaveInZone != null) onSaveInZone(ch, zone) else onSave(ch) }
+            }
         },
     ) {
+        if (zoneNames != null && onSaveInZone != null) {
+            InsetSection(header = null) {
+                cell { ChoiceRow("Zone", zone, zoneNames.indices.toList(), { zoneLabel(it, zoneNames) }) { zone = it } }
+            }
+        }
         InsetSection(header = null) {
             cell {
                 TextFieldRow(
@@ -379,6 +391,9 @@ fun ChannelEditorSheet(
         }
     }
 }
+
+/** "3 · CB": a zone's number and name. */
+fun zoneLabel(zone: Int, names: List<String>): String = "${zone + 1} · ${names.getOrElse(zone) { "" }}".trimEnd(' ', '·')
 
 /** One radio declared option, drawn as the control that suits its kind. */
 @Composable

@@ -12,8 +12,8 @@ import kotlinx.coroutines.sync.withLock
  * Saves a user image under a name the way Finder names copies. If an image in the name's family
  * ("Trip", "Trip (2)", ...) already holds the same channels for the same radio type, nothing is
  * saved and that image is returned. Otherwise the image takes the name, or the first free
- * "Name (n)". Only channels are compared: the radio changes some settings on its own, such as
- * the VFO frequencies, and a set is its channels.
+ * "Name (n)". Only channels and zone names are compared: the radio changes some settings on its
+ * own, such as the VFO frequencies, and a set is its channels and their zones.
  */
 class SaveNamedImage(private val library: ImageLibrary) {
     data class Saved(val id: Long, val name: String, val existing: Boolean)
@@ -25,7 +25,8 @@ class SaveNamedImage(private val library: ImageLibrary) {
         val base = baseOf(name.trim().ifEmpty { UNTITLED })
         val family = library.userImagesNamed(base, COMPARED)
         val channels = image.channels()
-        family.recent.firstOrNull { it.image.driver == image.driver && it.image.channels() == channels }
+        val zones = image.namedZones?.names
+        family.recent.firstOrNull { it.image.driver == image.driver && it.image.channels() == channels && it.image.namedZones?.names == zones }
             ?.let { return@withLock Saved(it.id, it.name, existing = true) }
         val taken = family.names
         val free = if (base !in taken) base else generateSequence(2) { it + 1 }.map { "$base ($it)" }.first { it !in taken }

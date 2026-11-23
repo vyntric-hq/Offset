@@ -22,7 +22,9 @@ import com.vyntric.offset.protocol.ChannelValidator
 import com.vyntric.offset.protocol.RadioDriver
 import com.vyntric.offset.protocol.RadioDrivers
 import com.vyntric.offset.protocol.RadioProfile
+import com.vyntric.offset.domain.StagedZones
 import com.vyntric.offset.domain.StoredImage
+import com.vyntric.offset.protocol.RadioZones
 import com.vyntric.offset.protocol.RadioImage
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +53,8 @@ data class RadioUiState(
     val setName: String = "",
     /** The library image staging was loaded from, if it is still in Images. */
     val baseImage: StoredImage? = null,
+    /** The set's zones, on radios with named zones. */
+    val zones: StagedZones? = null,
 ) {
     /**
      * The image a set is saved over: the last read, else the image staging was loaded from when
@@ -62,7 +66,14 @@ data class RadioUiState(
     val driver: RadioDriver get() = snapshot?.image?.driver ?: radioType
 
     /** What staging is checked against: the exact model of the read or loaded image, else the selected type. */
-    val target: StagingTarget get() = setBase?.let { StagingTarget.of(it) } ?: StagingTarget.of(radioType)
+    val target: StagingTarget get() = (setBase?.let { StagingTarget.of(it) } ?: StagingTarget.of(radioType)).copy(zones = zones)
+
+    /** Zone names that differ from the radio read, which a write would rename. */
+    val renamedZones: Int
+        get() {
+            val read = snapshot?.image?.namedZones?.names ?: return 0
+            return zones?.names?.zip(read)?.count { (a, b) -> a != b } ?: 0
+        }
     val model: RadioProfile get() = target.profile
     val busy: Boolean get() = operation is RadioOperations.State.Running
     val cableUsable: Boolean get() = cable is CableState.Ready || cable is CableState.Simulated
@@ -85,8 +96,8 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
     val state: StateFlow<RadioUiState> = combine(
         combine(c.radioLink.cable, c.radioSession.last, c.settings.settings) { cable, snap, s -> Triple(cable, snap, s) },
         c.staging.observe(), c.operations.state, combine(transient, savedRead, ::Pair),
-        combine(c.staging.observeName(), baseImage, ::Pair),
-    ) { (cable, snap, settings), staging, op, (messages, saved), (name, baseImage) ->
+        combine(c.staging.observeName(), baseImage, c.staging.observeZones(), ::Triple),
+    ) { (cable, snap, settings), staging, op, (messages, saved), (name, baseImage, zones) ->
         val (message, error) = messages
         val base = RadioUiState(
             cable, snap, staging, emptyMap(), op, message, error,
@@ -94,6 +105,7 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
             readSaved = snap != null && snap === saved,
             setName = name,
             baseImage = baseImage,
+            zones = zones,
         )
         base.copy(problems = c.buildStaging.problems(staging, base.target, base.setBase))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), RadioUiState())
@@ -103,8 +115,39 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
     fun selectRadioType(driver: RadioDriver) {
         if (driver == state.value.radioType) return
         c.selectRadioType(driver)
-        viewModelScope.launch { c.staging.update(forgetBaseIf = { true }) { it to Unit } }
+        viewModelScope.launch { c.staging.update(forgetBaseIf = { true }, zonesFor = { _, _ -> null }) { it to Unit } }
     }
+
+    /**
+     * The set's zones after a read: none when the radio shows no zone names; the radio's names when
+     * staging was [replaced] by its channels or had no zones; else the staged names, which a
+     * write would put on the radio.
+     */
+    private fun zonesAfterRead(read: RadioImage, staged: StagedZones?, replaced: Boolean): StagedZones? {
+        val radio = StagedZones.of(read) ?: return null
+        return if (replaced || staged == null) radio.copy(addTo = staged?.addTo) else staged
+    }
+
+    fun renameZone(zone: Int, name: String) = viewModelScope.launch {
+        c.staging.updateZones { z -> z?.takeIf { zone in it.names.indices && RadioZones.clean(name, it.zones.nameLength).isNotEmpty() }?.renamed(zone, name) ?: z }
+    }
+
+    /** Where new channels go: a zone, or null for the first free slot anywhere. */
+    fun setAddZone(zone: Int?) = viewModelScope.launch { c.staging.updateZones { it?.copy(addTo = zone) } }
+
+    /** Saves an edit, moving the channel to [zone] when that changed. */
+    fun replace(key: Long, channel: Channel, zone: Int?) = viewModelScope.launch {
+        val target = state.value.target
+        val full = c.staging.update { list ->
+            val edited = c.buildStaging.replace(list, key, channel)
+            if (zone == null) edited to false
+            else c.buildStaging.moveToZone(edited, key, zone, target)?.let { it to false } ?: (edited to true)
+        }
+        // The edit itself is kept; only the move did not happen.
+        if (full && zone != null) transient.value = null to "${zoneTitle(zone)} is full, so the channel stayed in its zone."
+    }
+
+    private fun zoneTitle(zone: Int) = state.value.zones?.names?.getOrNull(zone)?.let { "Zone ${zone + 1} ($it)" } ?: "Zone ${zone + 1}"
 
     init {
         // Read results arrive here even if the read finished while the screen was away.
@@ -114,7 +157,7 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
                     is RadioOperations.Result.ReadDone -> {
                         c.operations.consume(r)
                         // Channels taken from the radio have no image in Images behind them.
-                        val wasEmpty = c.staging.update(forgetBaseIf = { it }) { staged ->
+                        val wasEmpty = c.staging.update(forgetBaseIf = { it }, zonesFor = { empty, z -> zonesAfterRead(r.read.image, z, empty) }) { staged ->
                             if (staged.isEmpty()) c.buildStaging.fromImage(r.read.image) to true
                             else c.buildStaging.adoptRadioModes(staged, r.read.image) to false
                         }
@@ -142,7 +185,9 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
 
     fun loadFromRadio() = viewModelScope.launch {
         val image = c.radioSession.last.value?.image ?: return@launch
-        c.staging.update(forgetBaseIf = { true }) { c.buildStaging.fromImage(image) to Unit }
+        c.staging.update(forgetBaseIf = { true }, zonesFor = { _, z -> zonesAfterRead(image, z, replaced = true) }) {
+            c.buildStaging.fromImage(image) to Unit
+        }
         transient.value = "Staging replaced with the radio's ${image.usedChannelCount} channels." to null
         clearMessageLater()
     }
@@ -175,9 +220,12 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
         val base = s.setBase ?: return@launch
         if (!s.canSaveSet) return@launch
         val image = try {
-            base.withChannels(s.staging.toSlots(s.target.capacity))
+            base.withChannels(s.staging.toSlots(s.target.capacity)).let { img ->
+                val names = s.zones?.names
+                if (names != null && img.namedZones != null) img.withZoneNames(names) else img
+            }
         } catch (e: IllegalArgumentException) {
-            transient.value = null to "A channel could not be encoded: ${e.message}"
+            transient.value = null to "The set could not be saved: ${e.message}"
             return@launch
         }
         runCatching { c.saveNamedImage(image, s.setName) }
@@ -205,13 +253,13 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
 
     fun remove(key: Long) = viewModelScope.launch { c.staging.update { c.buildStaging.remove(it, key) to Unit } }
 
-    fun replace(key: Long, channel: Channel) = viewModelScope.launch { c.staging.update { c.buildStaging.replace(it, key, channel) to Unit } }
 
-    fun addManual(channel: Channel) = viewModelScope.launch {
-        val target = state.value.target
+    /** Adds a channel, to [zone] when given, else where new channels go. */
+    fun addManual(channel: Channel, zone: Int? = null) = viewModelScope.launch {
+        val target = state.value.target.let { t -> if (zone != null && t.zones != null) t.copy(zones = t.zones.copy(addTo = zone)) else t }
         val r = c.staging.update { list -> c.buildStaging.add(list, listOf(channel), ChannelOrigin.MANUAL, target).let { it.staging to it } }
         transient.value = when {
-            r.overflow > 0 -> null to "Staging is full (${target.capacity} channels)."
+            r.overflow > 0 -> null to (target.zones?.addTo?.let { "${zoneTitle(it)} is full." } ?: "Staging is full (${target.capacity} channels).")
             r.duplicates > 0 -> null to "That channel is already staged."
             else -> "Added ${channel.name.ifBlank { "channel" }}." to null
         }
@@ -256,7 +304,7 @@ class RadioViewModel(private val c: AppContainer) : ViewModel() {
     fun write() {
         val s = state.value
         val request = WriteRadio.Request(
-            content = WriteRadio.Content.Channels(s.staging.toSlots(s.target.capacity)),
+            content = WriteRadio.Content.Channels(s.staging.toSlots(s.target.capacity), zoneNames = s.zones?.names),
             resultName = s.setName,
             confirmedIdentity = s.snapshot?.image?.identity,
             driver = s.driver,

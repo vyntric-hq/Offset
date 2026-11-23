@@ -67,6 +67,8 @@ data class StagingEntity(
     @ColumnInfo(defaultValue = "") val name: String = "",
     /** The library image staging was loaded from, which a set is saved over when no radio was read. */
     val baseImageId: Long? = null,
+    /** The set's zone names and add-to zone as JSON, on radios with named zones; null without. */
+    val zones: String? = null,
 )
 
 /**
@@ -160,7 +162,7 @@ interface StagingDao {
     suspend fun put(entity: StagingEntity)
 }
 
-@Database(entities = [ImageEntity::class, StagingEntity::class, ReachItemEntity::class], version = 5, exportSchema = true)
+@Database(entities = [ImageEntity::class, StagingEntity::class, ReachItemEntity::class], version = 6, exportSchema = true)
 abstract class OffsetDatabase : RoomDatabase() {
     abstract fun images(): ImageDao
     abstract fun staging(): StagingDao
@@ -199,6 +201,13 @@ abstract class OffsetDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+        /** 0.7.7 keeps the staged set's zones (RT-950 Pro). Existing staging has none until the next read. */
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE staging ADD COLUMN zones TEXT")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
     }
 }

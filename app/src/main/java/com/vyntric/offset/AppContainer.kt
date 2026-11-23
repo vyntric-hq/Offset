@@ -100,10 +100,15 @@ class AppContainer(context: Context, database: OffsetDatabase? = null) {
 
     val readRadio = ReadRadio(radioLink, images, radioSession, clock, sleeper, ::selectedDriver)
 
-    /** The radio staging is built for: the one last read, else the selected type. */
-    fun stagingTarget(): com.vyntric.offset.domain.StagingTarget =
-        radioSession.last.value?.image?.let { com.vyntric.offset.domain.StagingTarget.of(it) }
-            ?: com.vyntric.offset.domain.StagingTarget.of(selectedDriver())
+    /** What a channel may hold on the radio staging is built for: the one last read, else the selected type. */
+    fun stagingProfile(): com.vyntric.offset.protocol.RadioProfile =
+        radioSession.last.value?.image?.profile ?: selectedDriver().defaultProfile
+
+    /** The radio staging is built for (the one last read, else the selected type), with the set's zones. */
+    suspend fun stagingTarget(): com.vyntric.offset.domain.StagingTarget =
+        (radioSession.last.value?.image?.let { com.vyntric.offset.domain.StagingTarget.of(it) }
+            ?: com.vyntric.offset.domain.StagingTarget.of(selectedDriver()))
+            .copy(zones = staging.zones())
     val saveNamedImage = com.vyntric.offset.domain.SaveNamedImage(images)
     val writeRadio = WriteRadio(radioLink, images, radioSession, clock, sleeper, saveNamedImage)
     val operations = com.vyntric.offset.domain.RadioOperations(appScope, readRadio, writeRadio)

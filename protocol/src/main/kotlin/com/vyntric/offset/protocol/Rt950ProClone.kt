@@ -58,7 +58,9 @@ class Rt950ProClone(
      * Writes the whole channel segment of [target] (all 240 blocks, in address order, as the
      * hardware tested flow does) and ends the session. Returns the number of blocks written.
      *
-     * Nothing outside the channel segment is ever sent. Refuses before writing when the radio
+     * Then, when the zone names changed and the radio's read shows them, the 0xC000 blocks whose
+     * bytes changed are written in the same session (PE1HVH writes them with the channels).
+     * Nothing else is ever sent. Refuses before writing when the radio
      * does not report an RT-950 model, or when [target] differs from [before] outside the
      * channels. This session does not read the radio first (reading and writing in one session
      * is untested on hardware), so the caller's full read made moments before (rule 1) is the
@@ -82,9 +84,21 @@ class Rt950ProClone(
                 writeBlock(segment.writeCommand, segment.address + offset, data)
                 onProgress(CloneProgress(CloneProgress.Phase.WRITING, offset + Rt950ProImage.BLOCK, segment.length))
             }
+            var written = segment.blocks
+            if (before.namedZones != null && target.zoneNamesDiffer(before)) {
+                val zones = Rt950ProImage.ZONE_SEGMENT
+                val old = before.bytes()
+                for (block in 0 until zones.blocks) {
+                    val from = zones.imageOffset + block * Rt950ProImage.BLOCK
+                    val data = bytes.copyOfRange(from, from + Rt950ProImage.BLOCK)
+                    if (data.contentEquals(old.copyOfRange(from, from + Rt950ProImage.BLOCK))) continue
+                    writeBlock(zones.writeCommand, zones.address + block * Rt950ProImage.BLOCK, data)
+                    written++
+                }
+            }
             end()
             sleeper.sleep(RESTART_DELAY_MS)
-            segment.blocks
+            written
         }
     }
 
