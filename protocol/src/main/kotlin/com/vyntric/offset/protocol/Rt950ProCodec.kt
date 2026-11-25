@@ -13,14 +13,14 @@ import java.nio.charset.Charset
  *
  * ```
  *  0..3   rx frequency   packed BCD, little endian, 10 Hz units; all 00/FF = empty slot
- *  4..7   tx frequency   same; all 00/FF = none
+ *  4..7   tx frequency   same; all 00/FF = receive only
  *  8..9   rx tone        00 00 or FF FF off; second byte 00 = DCS table index 1..210
  * 10..11  tx tone        (105 normal codes, then the same 105 inverted); else CTCSS tenths, LE
  * 12      low nibble signalling group (option rt950.signalling)
  * 13      low nibble PTT ID: 0 off, 1 BOT, 2 EOT, 3 both
  * 14      low nibble power (0 high, 1 medium, 2 low), high nibble scrambler (rt950.scrambler)
  * 15      bit7 learn FHSS (rt950.fhssLearn), bit6 narrow, bits5-4 encryption (rt950.encryption),
- *         bit3 busy lockout, bit2 scan add, bit1 TX enabled, bit0 AM receive (mode)
+ *         bit3 busy lockout, bit2 scan add, bit1 always clear, bit0 AM receive (mode)
  * 16..19  FHSS code: six hex digits, last pair first, then A0; FF FF FF FF for none (rt950.fhssCode)
  * 20..31  name, GB2312, FF padded
  * ```
@@ -28,6 +28,12 @@ import java.nio.charset.Charset
  * Encoding works on top of the slot's old record: a field is rewritten only when its value
  * changed, and an option the channel does not carry keeps the slot's bits (a Chinese name that
  * was not edited survives the same way). An empty slot starts from [TEMPLATE].
+ *
+ * Bit 1 of byte 15: Nathan Barguss's and PE1HVH's drivers call it "TX enabled" and set it on
+ * every channel that transmits. On the hardware (firmware 0.29) the radio clears it whenever it
+ * saves a channel's RX Modulation, as FM or as AM; a channel with it set shows no RX Modulation
+ * choice in the radio's menu; and a channel with it clear transmits. So Offset clears it on every
+ * channel it writes, unchanged ones included, and reads receive only from an empty TX frequency.
  */
 object Rt950ProCodec {
     const val RECORD_SIZE = 32
@@ -42,16 +48,17 @@ object Rt950ProCodec {
     private const val FHSS_MARK = 0xA0
     private const val FLAG_BUSY_LOCKOUT = 0x08
     private const val FLAG_SCAN_ADD = 0x04
-    private const val FLAG_TX_ENABLED = 0x02
+    /** Set by other software as "TX enabled"; the radio clears it (see the class doc). */
+    private const val FLAG_STRAY = 0x02
 
     /**
      * A new channel's record before its fields are written: no tones, signalling group 0, PTT ID
-     * off, high power, scrambler off, wide FM, scan add and TX enabled, no FHSS, empty name.
+     * off, high power, scrambler off, wide FM, scan add, no FHSS, empty name.
      */
     val TEMPLATE: ByteArray
         get() = ByteArray(RECORD_SIZE) { 0xFF.toByte() }.also {
             it.fill(0, 8, 15)
-            it[15] = (FLAG_SCAN_ADD or FLAG_TX_ENABLED).toByte()
+            it[15] = FLAG_SCAN_ADD.toByte()
         }
 
     /**
@@ -71,8 +78,7 @@ object Rt950ProCodec {
         if (isEmpty(bytes, offset)) return null
         val rx = (Bcd.decodeLittleEndian(bytes, offset, 4) ?: return null) * 10
         val flags = bytes[offset + 15].toInt() and 0xFF
-        val tx = if (flags and FLAG_TX_ENABLED == 0 || isEmpty(bytes, offset + 4)) null
-        else Bcd.decodeLittleEndian(bytes, offset + 4, 4)?.times(10)
+        val tx = if (isEmpty(bytes, offset + 4)) null else Bcd.decodeLittleEndian(bytes, offset + 4, 4)?.times(10)
         val (duplex, shift) = duplexOf(rx, tx)
         val ptt = bytes[offset + 13].toInt() and 0x0F
         return Channel(
@@ -104,24 +110,21 @@ object Rt950ProCodec {
 
     /**
      * Encodes [channel] on top of [existing] (the slot's current record, or null for an empty
-     * slot) and returns the new record. An unchanged channel returns [existing]'s bytes.
+     * slot) and returns the new record. An unchanged channel returns [existing]'s bytes with bit 1
+     * of the flags cleared.
      */
     fun encode(channel: Channel, existing: ByteArray? = null): ByteArray {
         require(channel.digitalMode == null) { "The RT-950 Pro has no digital channels" }
         val old = existing?.takeIf { it.size == RECORD_SIZE }?.let { decode(it) }
         val out = if (old != null) existing.copyOf() else TEMPLATE
+        setFlag(out, FLAG_STRAY, false)
         if (old == channel) return out
         val c = normalize(channel)
 
         if (old?.rxFreqHz != c.rxFreqHz) Bcd.encodeLittleEndian(c.rxFreqHz / 10, out, 0, 4)
         val tx = c.txFreqHz
         if (old == null || old.txFreqHz != tx) {
-            if (tx == null) {
-                out[15] = (out[15].toInt() and FLAG_TX_ENABLED.inv()).toByte()
-            } else {
-                Bcd.encodeLittleEndian(tx / 10, out, 4, 4)
-                out[15] = (out[15].toInt() or FLAG_TX_ENABLED).toByte()
-            }
+            if (tx == null) out.fill(0xFF.toByte(), 4, 8) else Bcd.encodeLittleEndian(tx / 10, out, 4, 4)
         }
         if (old?.rxSquelch != c.rxSquelch) encodeSquelch(c.rxSquelch, out, 8)
         if (old?.txSquelch != c.txSquelch) encodeSquelch(c.txSquelch, out, 10)

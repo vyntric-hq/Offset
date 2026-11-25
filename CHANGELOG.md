@@ -7,6 +7,15 @@ heading matches the tag as the GitHub Release notes, so every tag needs a sectio
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-25
+
+### Fixed
+
+- RT-950 Pro: the radio's RX Modulation menu showed no choice (FM, AM or SSB) on channels Offset
+  wrote. Offset set a flag bit that the radio clears when it saves a channel itself. Offset now
+  writes channels the way the radio does, and the next write corrects channels already written.
+  A receive only channel is one with no TX frequency.
+
 ## [0.8.0] - 2026-11-23
 
 ### Added

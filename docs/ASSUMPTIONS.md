@@ -452,3 +452,10 @@ assumed and why. Items that need a physical radio to confirm are marked **(hardw
     channels 961 to 990 (zone 10, channels 70 to 99) sit at 0x7800 to 0x7BBF, where older
     firmware may keep calibration-like data (NeonPlug). Without a firmware version Offset cannot
     tell them apart, so zone 10 shows 69 channels.
+128. **RT-950 Pro flag bit 1 is always written clear (0.8.1):** Nathan Barguss's and PE1HVH's
+    drivers call byte 15 bit 1 "TX enabled". On the user's radio (firmware 0.29) the radio cleared
+    it when its RX Modulation menu saved a channel, as FM and as AM; with it set, that menu showed
+    no choice; and a channel with it clear transmitted. Offset clears it on every channel it writes
+    and treats a channel as receive only when its TX frequency is empty. Risks: CHIRP with those
+    drivers shows Offset's channels as TX off, and a record another tool wrote with bit 1 clear
+    and a TX frequency stored, meaning TX off, now reads as transmitting.

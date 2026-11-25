@@ -273,7 +273,10 @@ complement. Blocks are 128 bytes: read `52 hi lo 80`, write `57 hi lo 80` + data
 The image is six segments (channels 0x0000 to 0x7800, VFO, function, DTMF, modulation, modulation
 names) plus APRS (commands 54 and 55), 33,152 bytes. Channel records are 32 bytes: BCD RX and TX,
 two tone words (DCS index or CTCSS tenths), signalling, PTT ID, power and scrambler, flags (narrow,
-busy lockout, scan, TX enable, AM), frequency hopping code, 12 byte GB2312 name. Offset writes the
+busy lockout, scan, AM), frequency hopping code, 12 byte GB2312 name. Flag bit 1, which other
+drivers call "TX enable", is cleared by the radio whenever it saves a channel, and with it set the
+radio's RX Modulation menu shows no choice; Offset clears it and reads receive only from an empty
+TX frequency. Offset writes the
 channel segment only. The radio restarts after a write session ends, so Offset waits 3 s and the
 verifying read retries its handshake up to five times (about 20 s in all).
 
